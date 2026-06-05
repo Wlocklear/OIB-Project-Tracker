@@ -215,8 +215,8 @@
   let infoWindow = null;
   let mapInitialized = false;
 
-  // ── Google Maps init (called by API callback) ───────────────────────────────
-  window.initMap = function() {
+  // ── Google Maps init ────────────────────────────────────────────────────────
+  window.__mapsReady.then(() => {
     gmap = new google.maps.Map(document.getElementById('map'), {
       center: { lat: 34.438, lng: -77.552 },
       zoom: 13,
@@ -245,7 +245,7 @@
     infoWindow = new google.maps.InfoWindow();
     mapInitialized = true;
     if (jobs.length > 0) { rebuildMarkers(); fitMap(); }
-  };
+  });
 
   // ── Firebase ────────────────────────────────────────────────────────────────
   onValue(jobsRef, (snapshot) => {
@@ -501,6 +501,11 @@
 </script>
 
 <!-- Google Maps API -->
+<script>
+  window.__mapsResolve = null;
+  window.__mapsReady = new Promise(resolve => { window.__mapsResolve = resolve; });
+  window.initMap = function() { window.__mapsResolve(); };
+</script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCRRmEds9bwhZIv572gQvlIQLKqn8gigUM&callback=initMap" async defer></script>
 
 </body>
