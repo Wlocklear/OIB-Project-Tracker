@@ -71,6 +71,11 @@
     .iw-lbl { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
     .iw-val { font-size: 10px; color: #aaa; }
     .iw-val.pm { color: #e8c87a; }
+    .iw-btns { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+    .iw-btn { display: block; text-align: center; padding: 6px 10px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; text-decoration: none; border: 1px solid #2a2d38; color: #aaa; border-radius: 2px; transition: all 0.15s; }
+    .iw-btn:hover { border-color: #f4a830; color: #f4a830; }
+    .iw-btn-primary { background: #f4a830; color: #0f1117 !important; border-color: #f4a830; font-weight: 600; }
+    .iw-btn-primary:hover { background: #e09520; }
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
     .modal-bg.open { display: flex; }
     .modal { background: #13161e; border: 1px solid #f4a830; padding: 24px; width: 400px; max-height: 92vh; overflow-y: auto; font-family: 'IBM Plex Mono', monospace; }
@@ -227,11 +232,16 @@
         { featureType: 'all', elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
         { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888' }] },
         { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#2a2d38' }] },
-        { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] }
+        { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }, { color: '#1a2a1a' }] },
+        { featureType: 'poi.park', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+        { featureType: 'business', stylers: [{ visibility: 'off' }] }
       ],
       disableDefaultUI: false,
       zoomControl: true,
-      mapTypeControl: false,
+      mapTypeControl: true,
       streetViewControl: false,
       fullscreenControl: true
     });
@@ -287,6 +297,9 @@
   }
 
   function makeInfoContent(job) {
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.address)}`;
+    const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${job.lat},${job.lng}`;
+    const satelliteUrl = `https://www.google.com/maps/search/?api=1&query=${job.lat},${job.lng}&basemap=satellite`;
     return `<div class="iw-content">
       <div class="iw-name">${job.name}</div>
       <div class="iw-addr">${job.address}</div>
@@ -294,7 +307,12 @@
         <div><div class="iw-lbl">Status</div><div class="iw-val">${STATUS_LABELS[job.status]}</div></div>
         <div><div class="iw-lbl">Complete</div><div class="iw-val">${job.percent || 0}%</div></div>
       </div>
-      ${job.pm ? `<div class="iw-row"><div><div class="iw-lbl">PM</div><div class="iw-val pm">${job.pm}</div></div>${job.type ? `<div><div class="iw-lbl">Type</div><div class="iw-val">${job.type}</div></div>` : ''}</div>` : ''}
+      ${job.pm ? `<div class="iw-row" style="margin-top:4px"><div><div class="iw-lbl">PM</div><div class="iw-val pm">${job.pm}</div></div>${job.type ? `<div><div class="iw-lbl">Type</div><div class="iw-val">${job.type}</div></div>` : ''}</div>` : ''}
+      <div class="iw-btns">
+        <a href="${mapsUrl}" target="_blank" class="iw-btn iw-btn-primary">🧭 Get Directions</a>
+        <a href="${streetViewUrl}" target="_blank" class="iw-btn">📷 Street View</a>
+        <a href="${satelliteUrl}" target="_blank" class="iw-btn">🛰 Satellite</a>
+      </div>
     </div>`;
   }
 
