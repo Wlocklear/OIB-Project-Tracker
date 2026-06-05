@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Site Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, push, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZKPLWcNpVuVWhpAnkU5A0_ZxRJQBtXpE",
+      authDomain: "oib-projects.firebaseapp.com",
+      databaseURL: "https://oib-projects-default-rtdb.firebaseio.com",
+      projectId: "oib-projects",
+      storageBucket: "oib-projects.firebasestorage.app",
+      messagingSenderId: "504283453184",
+      appId: "1:504283453184:web:97b40026523231569105e5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const jobsRef = ref(db, 'jobs');
+
+    const STATUS_LABELS = { active: 'Active', completed: 'Completed', upcoming: 'Upcoming' };
+
+    let jobs = [];
+    let activeJob = null, editingId = null;
+    let showSelectedOnly = false;
+    let pinnedIds = new Set();
+    let leafletMarkers = {};
+    let mapReady = false;
+
+    // ── Init Leaflet ────────────────────────────────────────────────────────────
+    const map = L.map('map', { zoomControl: true }).setView([34.438, -77.552], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    }).addTo(map);
+    mapReady = true;
+
+    // ── Firebase listener — real-time sync ──────────────────────────────────────
+    onValue(jobsRef, (snapshot) => {
+      const data = snapshot.val();
+      jobs = data ? Object.entries(data).map(([fbKey, val]) => ({ ...val, fbKey })) : [];
+      renderJobs();
+      rebuildMarkers();
+      if (jobs.length > 0) fitMap();
+      document.getElementById('loadingMsg').style.display = 'none';
+    });
+
+    // ── Firebase write helpers ──────────────────────────────────────────────────
+    async function saveToFirebase(jobData) {
+      if (jobData.fbKey) {
+        const { fbKey, ...data } = jobData;
+        await update(ref(db, `jobs/${fbKey}`), data);
+      } else {
+        await push(jobsRef, jobData);
+      }
+    }
+
+    async function deleteFromFirebase(fbKey) {
+      await remove(ref(db, `jobs/${fbKey}`));
+    }
+
+    // ── Map helpers ─────────────────────────────────────────────────────────────
+    function makeIcon(job, isSelected) {
+      const color = isSelected ? '#ffffff' : (job.status === 'active' ? '#f4a830' : job.status === 'completed' ? '#4ab0f4' : '#d4c860');
+      const border = isSelected ? '#f4a830' : '#0f1117';
+      const num = jobs.indexOf(job) + 1;
+      return L.divIcon({
+        className: '',
+        html: `<div style="background:${color};border:2px solid ${border};border-radius:50% 50% 50% 0;width:30px;height:30px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);"><span style="transform:rotate(45deg);font-size:11px;font-weight:700;color:#0f1117;font-family:monospace">${num}</span></div>`,
+        iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -32]
+      });
+    }
+
+    function makePopup(job) {
+      return `<div class="popup-name">${job.name}</div>
+        <div class="popup-addr">${job.address}</div>
+        <div class="popup-row">
+          <div class="popup-item"><div class="popup-lbl">Status</div><div class="popup-val">${STATUS_LABELS[job.status]}</div></div>
+          <div class="popup-item"><div class="popup-lbl">Complete</div><div class="popup-val">${job.percent || 0}%</div></div>
+        </div>
+        ${job.pm ? `<div class="popup-row" style="margin-top:4px"><div class="popup-item"><div class="popup-lbl">PM</div><div class="popup-val pm">${job.pm}</div></div>${job.type ? `<div class="popup-item"><div class="popup-lbl">Type</div><div class="popup-val">${job.type}</div></div>` : ''}</div>` : ''}`;
+    }
+
+    function rebuildMarkers() {
+      Object.values(leafletMarkers).forEach(m => map.removeLayer(m));
+      leafletMarkers = {};
+      const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
+      visible.forEach(job => {
+        const isSelected = activeJob === job.fbKey;
+        const marker = L.marker([job.lat, job.lng], { icon: makeIcon(job, isSelected) })
+          .addTo(map).bindPopup(makePopup(job), { maxWidth: 220 });
+        marker.on('click', () => { activeJob = job.fbKey; renderJobs(); rebuildMarkers(); marker.openPopup(); });
+        if (isSelected) marker.openPopup();
+        leafletMarkers[job.fbKey] = marker;
+      });
+    }
+
+    function fitMap() {
+      const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
+      if (visible.length === 0) return;
+      if (visible.length === 1) { map.setView([visible[0].lat, visible[0].lng], 15); return; }
+      map.fitBounds(L.latLngBounds(visible.map(j => [j.lat, j.lng])), { padding: [60, 60] });
+    }
+
+    function focusJob(job) {
+      activeJob = job.fbKey;
+      map.setView([job.lat, job.lng], 16);
+      renderJobs(); rebuildMarkers();
+      if (leafletMarkers[job.fbKey]) leafletMarkers[job.fbKey].openPopup();
+    }
+
+    // ── Toggle ──────────────────────────────────────────────────────────────────
+    window.toggleMapMode = function() {
+      showSelectedOnly = !showSelectedOnly;
+      document.getElementById('toggleTrack').classList.toggle('on', showSelectedOnly);
+      document.getElementById('toggleLabel').textContent = showSelectedOnly ? 'Selected Only' : 'Show Selected Only';
+      if (!showSelectedOnly) activeJob = null;
+      renderJobs(); rebuildMarkers(); fitMap();
+    };
+
+    window.togglePin = function(fbKey, e) {
+      e.stopPropagation();
+      if (pinnedIds.has(fbKey)) pinnedIds.delete(fbKey); else pinnedIds.add(fbKey);
+      renderJobs();
+      if (showSelectedOnly) { rebuildMarkers(); fitMap(); }
+    };
+
+    // ── Render sidebar ──────────────────────────────────────────────────────────
+    function getProgressColor(pct) { return pct < 30 ? '#f87171' : pct < 70 ? '#f4a830' : '#4caf50'; }
+    function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
+
+    function renderJobs() {
+      const list = document.getElementById('jobList');
+      list.innerHTML = '';
+      jobs.forEach((job, i) => {
+        const isPinned = pinnedIds.has(job.fbKey);
+        const isActive = activeJob === job.fbKey;
+        const pct = job.percent || 0;
+        const div = document.createElement('div');
+        div.className = 'job-item' + (isActive ? ' active' : '') + (isPinned && showSelectedOnly ? ' pinned' : '');
+        div.innerHTML = `
+          <div class="job-top">
+            <div class="job-number">SITE #${String(i+1).padStart(2,'0')}</div>
+            <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+          </div>
+          <div class="job-name">${job.name}</div>
+          <div class="job-address">${job.address}</div>
+          <div class="tag-row">
+            ${job.type ? `<span class="tag">${job.type}</span>` : ''}
+            ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
+          </div>
+          <div class="meta-grid">
+            <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
+            <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
+            <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${getProgressColor(pct)}"></div></div>
+            <div class="progress-label">${pct}%</div>
+          </div>
+          <div class="btn-row">
+            <button class="edit-btn" onclick="openEdit('${job.fbKey}',event)">✎ edit</button>
+            <button class="del-btn" onclick="confirmDelete('${job.fbKey}',event)">✕ delete</button>
+            <button class="pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePin('${job.fbKey}',event)">${isPinned ? '★ pinned' : '☆ pin'}</button>
+          </div>
+        `;
+        div.onclick = (e) => {
+          if (['edit-btn','del-btn','pin-btn'].some(c => e.target.classList.contains(c))) return;
+          focusJob(job);
+        };
+        list.appendChild(div);
+      });
+      document.getElementById('count').textContent = jobs.length;
+    }
+
+    // ── Delete ──────────────────────────────────────────────────────────────────
+    window.confirmDelete = function(fbKey, e) {
+      e.stopPropagation();
+      if (confirm('Delete this job site?')) {
+        deleteFromFirebase(fbKey);
+        if (activeJob === fbKey) activeJob = null;
+        pinnedIds.delete(fbKey);
+      }
+    };
+
+    // ── Modal ───────────────────────────────────────────────────────────────────
+    window.openModal = function() {
+      editingId = null;
+      document.getElementById('modalTitle').textContent = 'Add Job Site';
+      document.getElementById('modalSaveBtn').textContent = 'Add Site';
+      ['inputName','inputAddress','inputPM','inputUnits','inputStart','inputEnd'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('inputType').value = '';
+      document.getElementById('inputStatus').value = 'active';
+      document.getElementById('inputPercent').value = 0;
+      document.getElementById('rangeVal').textContent = '0%';
+      document.getElementById('modalBg').classList.add('open');
+      document.getElementById('inputName').focus();
+    };
+
+    window.openEdit = function(fbKey, e) {
+      e.stopPropagation();
+      const job = jobs.find(j => j.fbKey === fbKey); if (!job) return;
+      editingId = fbKey;
+      document.getElementById('modalTitle').textContent = 'Edit Job Site';
+      document.getElementById('modalSaveBtn').textContent = 'Save Changes';
+      document.getElementById('inputName').value = job.name;
+      document.getElementById('inputAddress').value = job.address;
+      document.getElementById('inputPM').value = job.pm || '';
+      document.getElementById('inputType').value = job.type || '';
+      document.getElementById('inputUnits').value = job.units || '';
+      document.getElementById('inputStart').value = job.start || '';
+      document.getElementById('inputEnd').value = job.end || '';
+      document.getElementById('inputStatus').value = job.status;
+      document.getElementById('inputPercent').value = job.percent || 0;
+      document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
+      document.getElementById('modalBg').classList.add('open');
+    };
+
+    window.closeModal = function() { document.getElementById('modalBg').classList.remove('open'); editingId = null; };
+
+    window.saveJob = async function() {
+      const name = document.getElementById('inputName').value.trim();
+      const address = document.getElementById('inputAddress').value.trim();
+      if (!name || !address) return;
+      const pm = document.getElementById('inputPM').value.trim();
+      const type = document.getElementById('inputType').value;
+      const units = document.getElementById('inputUnits').value.trim();
+      const start = document.getElementById('inputStart').value;
+      const end = document.getElementById('inputEnd').value;
+      const status = document.getElementById('inputStatus').value;
+      const percent = parseInt(document.getElementById('inputPercent').value) || 0;
+
+      document.getElementById('modalSaveBtn').textContent = 'Saving...';
+
+      if (editingId !== null) {
+        const job = jobs.find(j => j.fbKey === editingId);
+        if (job) await saveToFirebase({ ...job, name, address, pm, type, units, start, end, status, percent });
+        closeModal(); return;
+      }
+
+      let lat = 34.44, lng = -77.56;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
+        const data = await res.json();
+        if (data.length > 0) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
+      } catch {}
+
+      await saveToFirebase({ name, address, lat, lng, pm, type, units, start, end, status, percent });
+      closeModal();
+    };
+
+    // seed initial jobs if DB is empty
+    onValue(jobsRef, (snapshot) => {
+      if (!snapshot.val()) {
+        push(jobsRef, { name: "Turtle Cay Villas", address: "211 N Shore Drive, Surf City, NC 28445", lat: 34.4275464, lng: -77.5422753, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
+        push(jobsRef, { name: "Topsail Landing Apts Phase II", address: "400 Gateway Condo Drive, Surf City, NC", lat: 34.4483438, lng: -77.5615301, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
+      }
+    }, { onlyOnce: true });
+
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'IBM Plex Mono', monospace; background: #0f1117; color: #e8e0d0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    header { background: #0f1117; border-bottom: 2px solid #f4a830; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: #f4a830; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .job-count { font-size: 11px; color: #888; letter-spacing: 1px; }
+    .job-count span { color: #f4a830; font-weight: 600; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .sync-label { font-size: 10px; color: #4caf50; letter-spacing: 1px; }
+    .map-toggle { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; }
+    .toggle-track { width: 40px; height: 20px; background: #2a2d38; border-radius: 10px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+    .toggle-track.on { background: #f4a830; }
+    .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; background: #e8e0d0; border-radius: 50%; transition: left 0.2s; }
+    .toggle-track.on .toggle-thumb { left: 23px; }
+    .toggle-label { color: #888; }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 285px; background: #13161e; border-right: 1px solid #2a2d38; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 14px 16px 10px; font-size: 10px; letter-spacing: 2px; color: #f4a830; text-transform: uppercase; border-bottom: 1px solid #2a2d38; }
+    .job-list { padding: 8px 0; flex: 1; }
+    #loadingMsg { padding: 20px 16px; font-size: 11px; color: #555; letter-spacing: 1px; }
+    .job-item { padding: 12px 16px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #1e2130; }
+    .job-item:hover, .job-item.active { background: #1a1e2a; border-left-color: #f4a830; }
+    .job-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+    .job-number { font-size: 10px; color: #f4a830; letter-spacing: 1px; }
+    .status-badge { font-size: 9px; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 2px; font-weight: 600; text-transform: uppercase; }
+    .status-active { background: #1a3a1a; color: #4caf50; }
+    .status-completed { background: #1a2a3a; color: #4ab0f4; }
+    .status-upcoming { background: #2a2a1a; color: #d4c860; }
+    .job-name { font-size: 12px; font-weight: 600; color: #e8e0d0; line-height: 1.3; margin-bottom: 2px; }
+    .job-address { font-size: 10px; color: #555; line-height: 1.4; margin-bottom: 6px; }
+    .tag-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
+    .tag { font-size: 9px; padding: 2px 7px; border-radius: 2px; background: #1e2130; color: #a0a8c0; letter-spacing: 0.5px; text-transform: uppercase; }
+    .tag.units { color: #7eb8a0; background: #142420; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 8px; }
+    .meta-label { font-size: 9px; color: #555; letter-spacing: 0.5px; text-transform: uppercase; }
+    .meta-value { font-size: 10px; color: #aaa; }
+    .meta-value.pm { color: #e8c87a; }
+    .progress-row { display: flex; align-items: center; gap: 8px; }
+    .progress-bar-bg { flex: 1; height: 4px; background: #2a2d38; border-radius: 2px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+    .progress-label { font-size: 10px; color: #888; min-width: 30px; text-align: right; }
+    .btn-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 4px; }
+    .edit-btn, .del-btn { font-size: 9px; background: none; border: none; cursor: pointer; font-family: 'IBM Plex Mono', monospace; letter-spacing: 1px; text-transform: uppercase; padding: 0; }
+    .edit-btn { color: #555; } .edit-btn:hover { color: #f4a830; }
+    .del-btn { color: #555; } .del-btn:hover { color: #f87171; }
+    .pin-btn { font-size: 9px; background: none; border: 1px solid #2a2d38; cursor: pointer; font-family: 'IBM Plex Mono', monospace; letter-spacing: 1px; text-transform: uppercase; padding: 2px 6px; color: #555; transition: all 0.15s; border-radius: 2px; }
+    .pin-btn:hover { border-color: #f4a830; color: #f4a830; }
+    .pin-btn.pinned { border-color: #f4a830; color: #f4a830; background: #2a1e00; }
+    .add-btn { margin: 12px; padding: 10px; background: transparent; border: 1px dashed #f4a830; color: #f4a830; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+    .add-btn:hover { background: #f4a830; color: #0f1117; }
+    .map-container { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+    .leaflet-popup-content-wrapper { background: #13161e; border: 1px solid #f4a830; border-radius: 2px; color: #e8e0d0; font-family: 'IBM Plex Mono', monospace; box-shadow: 0 4px 16px rgba(0,0,0,0.6); }
+    .leaflet-popup-tip { background: #13161e; }
+    .leaflet-popup-content { margin: 12px 14px; font-size: 11px; line-height: 1.6; min-width: 160px; }
+    .popup-name { font-size: 13px; font-weight: 600; color: #f4a830; margin-bottom: 4px; }
+    .popup-addr { font-size: 10px; color: #666; margin-bottom: 6px; }
+    .popup-row { display: flex; justify-content: space-between; gap: 12px; }
+    .popup-item { font-size: 10px; }
+    .popup-lbl { color: #555; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9px; }
+    .popup-val { color: #aaa; }
+    .popup-val.pm { color: #e8c87a; }
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-bg.open { display: flex; }
+    .modal { background: #13161e; border: 1px solid #f4a830; padding: 24px; width: 400px; max-height: 92vh; overflow-y: auto; font-family: 'IBM Plex Mono', monospace; }
+    .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: #f4a830; margin-bottom: 16px; }
+    .modal label { display: block; font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin-bottom: 4px; margin-top: 12px; }
+    .modal input, .modal select { width: 100%; background: #0f1117; border: 1px solid #2a2d38; color: #e8e0d0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 10px; outline: none; }
+    .modal input:focus, .modal select:focus { border-color: #f4a830; }
+    .modal select option { background: #13161e; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .two-col > div label { margin-top: 0; }
+    .range-row { display: flex; align-items: center; gap: 10px; }
+    .range-row input[type=range] { flex: 1; accent-color: #f4a830; }
+    .range-val { font-size: 12px; color: #f4a830; min-width: 36px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .btn-primary { flex: 1; padding: 10px; background: #f4a830; color: #0f1117; border: none; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
+    .btn-cancel { flex: 1; padding: 10px; background: transparent; color: #888; border: 1px solid #2a2d38; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
+    .btn-cancel:hover { color: #e8e0d0; border-color: #888; }
+    .divider { border: none; border-top: 1px solid #2a2d38; margin: 14px 0 2px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">⚒ Job Site Tracker</div>
+  <div class="header-right">
+    <div><span class="sync-dot"></span><span class="sync-label">LIVE</span></div>
+    <div class="map-toggle">
+      <div class="toggle-track" id="toggleTrack" onclick="toggleMapMode()">
+        <div class="toggle-thumb"></div>
+      </div>
+      <span class="toggle-label" id="toggleLabel">Show Selected Only</span>
+    </div>
+    <div class="job-count"><span id="count">0</span> Sites</div>
+  </div>
+</header>
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">Job Sites</div>
+    <div class="job-list" id="jobList">
+      <div id="loadingMsg">⟳ Connecting to database...</div>
+    </div>
+    <button class="add-btn" onclick="openModal()">+ Add Job Site</button>
+  </div>
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2 id="modalTitle">Add Job Site</h2>
+    <label>Job Name</label>
+    <input type="text" id="inputName" placeholder="e.g. Sunset Ridge Phase 1" />
+    <label>Address</label>
+    <input type="text" id="inputAddress" placeholder="e.g. 123 Main St, Surf City, NC" />
+    <label>Project Manager</label>
+    <input type="text" id="inputPM" placeholder="e.g. John Smith" />
+    <hr class="divider">
+    <div class="two-col">
+      <div>
+        <label>Project Type</label>
+        <select id="inputType">
+          <option value="">— Select —</option>
+          <option>Single Family</option>
+          <option>Multi-Family</option>
+          <option>Townhomes</option>
+          <option>Condos</option>
+          <option>Apartments</option>
+          <option>Commercial</option>
+          <option>Mixed Use</option>
+          <option>Renovation</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div>
+        <label>Unit Count</label>
+        <input type="number" id="inputUnits" placeholder="e.g. 24" min="0" />
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="two-col">
+      <div>
+        <label>Start Date</label>
+        <input type="date" id="inputStart" />
+      </div>
+      <div>
+        <label>Est. Completion</label>
+        <input type="date" id="inputEnd" />
+      </div>
+    </div>
+    <hr class="divider">
+    <label>Status</label>
+    <select id="inputStatus">
+      <option value="active">Active</option>
+      <option value="upcoming">Upcoming</option>
+      <option value="completed">Completed</option>
+    </select>
+    <label>Percent Complete</label>
+    <div class="range-row">
+      <input type="range" id="inputPercent" min="0" max="100" value="0" oninput="document.getElementById('rangeVal').textContent=this.value+'%'">
+      <span class="range-val" id="rangeVal">0%</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modalSaveBtn" onclick="saveJob()">Add Site</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
