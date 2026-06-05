@@ -233,11 +233,8 @@
         { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888' }] },
         { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#2a2d38' }] },
         { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }, { color: '#1a2a1a' }] },
-        { featureType: 'poi.park', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-        { featureType: 'business', stylers: [{ visibility: 'off' }] }
+        { featureType: 'poi', elementType: 'all', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', elementType: 'all', stylers: [{ visibility: 'off' }] }
       ],
       disableDefaultUI: false,
       zoomControl: true,
