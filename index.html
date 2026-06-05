@@ -5,266 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Job Site Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set, push, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyAZKPLWcNpVuVWhpAnkU5A0_ZxRJQBtXpE",
-      authDomain: "oib-projects.firebaseapp.com",
-      databaseURL: "https://oib-projects-default-rtdb.firebaseio.com",
-      projectId: "oib-projects",
-      storageBucket: "oib-projects.firebasestorage.app",
-      messagingSenderId: "504283453184",
-      appId: "1:504283453184:web:97b40026523231569105e5"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const jobsRef = ref(db, 'jobs');
-
-    const STATUS_LABELS = { active: 'Active', completed: 'Completed', upcoming: 'Upcoming' };
-
-    let jobs = [];
-    let activeJob = null, editingId = null;
-    let showSelectedOnly = false;
-    let pinnedIds = new Set();
-    let leafletMarkers = {};
-    let mapReady = false;
-
-    // ── Init Leaflet ────────────────────────────────────────────────────────────
-    const map = L.map('map', { zoomControl: true }).setView([34.438, -77.552], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
-    }).addTo(map);
-    mapReady = true;
-
-    // ── Firebase listener — real-time sync ──────────────────────────────────────
-    onValue(jobsRef, (snapshot) => {
-      const data = snapshot.val();
-      jobs = data ? Object.entries(data).map(([fbKey, val]) => ({ ...val, fbKey })) : [];
-      renderJobs();
-      rebuildMarkers();
-      if (jobs.length > 0) fitMap();
-      document.getElementById('loadingMsg').style.display = 'none';
-    });
-
-    // ── Firebase write helpers ──────────────────────────────────────────────────
-    async function saveToFirebase(jobData) {
-      if (jobData.fbKey) {
-        const { fbKey, ...data } = jobData;
-        await update(ref(db, `jobs/${fbKey}`), data);
-      } else {
-        await push(jobsRef, jobData);
-      }
-    }
-
-    async function deleteFromFirebase(fbKey) {
-      await remove(ref(db, `jobs/${fbKey}`));
-    }
-
-    // ── Map helpers ─────────────────────────────────────────────────────────────
-    function makeIcon(job, isSelected) {
-      const color = isSelected ? '#ffffff' : (job.status === 'active' ? '#f4a830' : job.status === 'completed' ? '#4ab0f4' : '#d4c860');
-      const border = isSelected ? '#f4a830' : '#0f1117';
-      const num = jobs.indexOf(job) + 1;
-      return L.divIcon({
-        className: '',
-        html: `<div style="background:${color};border:2px solid ${border};border-radius:50% 50% 50% 0;width:30px;height:30px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);"><span style="transform:rotate(45deg);font-size:11px;font-weight:700;color:#0f1117;font-family:monospace">${num}</span></div>`,
-        iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -32]
-      });
-    }
-
-    function makePopup(job) {
-      return `<div class="popup-name">${job.name}</div>
-        <div class="popup-addr">${job.address}</div>
-        <div class="popup-row">
-          <div class="popup-item"><div class="popup-lbl">Status</div><div class="popup-val">${STATUS_LABELS[job.status]}</div></div>
-          <div class="popup-item"><div class="popup-lbl">Complete</div><div class="popup-val">${job.percent || 0}%</div></div>
-        </div>
-        ${job.pm ? `<div class="popup-row" style="margin-top:4px"><div class="popup-item"><div class="popup-lbl">PM</div><div class="popup-val pm">${job.pm}</div></div>${job.type ? `<div class="popup-item"><div class="popup-lbl">Type</div><div class="popup-val">${job.type}</div></div>` : ''}</div>` : ''}`;
-    }
-
-    function rebuildMarkers() {
-      Object.values(leafletMarkers).forEach(m => map.removeLayer(m));
-      leafletMarkers = {};
-      const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
-      visible.forEach(job => {
-        const isSelected = activeJob === job.fbKey;
-        const marker = L.marker([job.lat, job.lng], { icon: makeIcon(job, isSelected) })
-          .addTo(map).bindPopup(makePopup(job), { maxWidth: 220 });
-        marker.on('click', () => { activeJob = job.fbKey; renderJobs(); rebuildMarkers(); marker.openPopup(); });
-        if (isSelected) marker.openPopup();
-        leafletMarkers[job.fbKey] = marker;
-      });
-    }
-
-    function fitMap() {
-      const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
-      if (visible.length === 0) return;
-      if (visible.length === 1) { map.setView([visible[0].lat, visible[0].lng], 15); return; }
-      map.fitBounds(L.latLngBounds(visible.map(j => [j.lat, j.lng])), { padding: [60, 60] });
-    }
-
-    function focusJob(job) {
-      activeJob = job.fbKey;
-      map.setView([job.lat, job.lng], 16);
-      renderJobs(); rebuildMarkers();
-      if (leafletMarkers[job.fbKey]) leafletMarkers[job.fbKey].openPopup();
-    }
-
-    // ── Toggle ──────────────────────────────────────────────────────────────────
-    window.toggleMapMode = function() {
-      showSelectedOnly = !showSelectedOnly;
-      document.getElementById('toggleTrack').classList.toggle('on', showSelectedOnly);
-      document.getElementById('toggleLabel').textContent = showSelectedOnly ? 'Selected Only' : 'Show Selected Only';
-      if (!showSelectedOnly) activeJob = null;
-      renderJobs(); rebuildMarkers(); fitMap();
-    };
-
-    window.togglePin = function(fbKey, e) {
-      e.stopPropagation();
-      if (pinnedIds.has(fbKey)) pinnedIds.delete(fbKey); else pinnedIds.add(fbKey);
-      renderJobs();
-      if (showSelectedOnly) { rebuildMarkers(); fitMap(); }
-    };
-
-    // ── Render sidebar ──────────────────────────────────────────────────────────
-    function getProgressColor(pct) { return pct < 30 ? '#f87171' : pct < 70 ? '#f4a830' : '#4caf50'; }
-    function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
-
-    function renderJobs() {
-      const list = document.getElementById('jobList');
-      list.innerHTML = '';
-      jobs.forEach((job, i) => {
-        const isPinned = pinnedIds.has(job.fbKey);
-        const isActive = activeJob === job.fbKey;
-        const pct = job.percent || 0;
-        const div = document.createElement('div');
-        div.className = 'job-item' + (isActive ? ' active' : '') + (isPinned && showSelectedOnly ? ' pinned' : '');
-        div.innerHTML = `
-          <div class="job-top">
-            <div class="job-number">SITE #${String(i+1).padStart(2,'0')}</div>
-            <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
-          </div>
-          <div class="job-name">${job.name}</div>
-          <div class="job-address">${job.address}</div>
-          <div class="tag-row">
-            ${job.type ? `<span class="tag">${job.type}</span>` : ''}
-            ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
-          </div>
-          <div class="meta-grid">
-            <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
-            <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
-            <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
-            <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
-          </div>
-          <div class="progress-row">
-            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${getProgressColor(pct)}"></div></div>
-            <div class="progress-label">${pct}%</div>
-          </div>
-          <div class="btn-row">
-            <button class="edit-btn" onclick="openEdit('${job.fbKey}',event)">✎ edit</button>
-            <button class="del-btn" onclick="confirmDelete('${job.fbKey}',event)">✕ delete</button>
-            <button class="pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePin('${job.fbKey}',event)">${isPinned ? '★ pinned' : '☆ pin'}</button>
-          </div>
-        `;
-        div.onclick = (e) => {
-          if (['edit-btn','del-btn','pin-btn'].some(c => e.target.classList.contains(c))) return;
-          focusJob(job);
-        };
-        list.appendChild(div);
-      });
-      document.getElementById('count').textContent = jobs.length;
-    }
-
-    // ── Delete ──────────────────────────────────────────────────────────────────
-    window.confirmDelete = function(fbKey, e) {
-      e.stopPropagation();
-      if (confirm('Delete this job site?')) {
-        deleteFromFirebase(fbKey);
-        if (activeJob === fbKey) activeJob = null;
-        pinnedIds.delete(fbKey);
-      }
-    };
-
-    // ── Modal ───────────────────────────────────────────────────────────────────
-    window.openModal = function() {
-      editingId = null;
-      document.getElementById('modalTitle').textContent = 'Add Job Site';
-      document.getElementById('modalSaveBtn').textContent = 'Add Site';
-      ['inputName','inputAddress','inputPM','inputUnits','inputStart','inputEnd'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('inputType').value = '';
-      document.getElementById('inputStatus').value = 'active';
-      document.getElementById('inputPercent').value = 0;
-      document.getElementById('rangeVal').textContent = '0%';
-      document.getElementById('modalBg').classList.add('open');
-      document.getElementById('inputName').focus();
-    };
-
-    window.openEdit = function(fbKey, e) {
-      e.stopPropagation();
-      const job = jobs.find(j => j.fbKey === fbKey); if (!job) return;
-      editingId = fbKey;
-      document.getElementById('modalTitle').textContent = 'Edit Job Site';
-      document.getElementById('modalSaveBtn').textContent = 'Save Changes';
-      document.getElementById('inputName').value = job.name;
-      document.getElementById('inputAddress').value = job.address;
-      document.getElementById('inputPM').value = job.pm || '';
-      document.getElementById('inputType').value = job.type || '';
-      document.getElementById('inputUnits').value = job.units || '';
-      document.getElementById('inputStart').value = job.start || '';
-      document.getElementById('inputEnd').value = job.end || '';
-      document.getElementById('inputStatus').value = job.status;
-      document.getElementById('inputPercent').value = job.percent || 0;
-      document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
-      document.getElementById('modalBg').classList.add('open');
-    };
-
-    window.closeModal = function() { document.getElementById('modalBg').classList.remove('open'); editingId = null; };
-
-    window.saveJob = async function() {
-      const name = document.getElementById('inputName').value.trim();
-      const address = document.getElementById('inputAddress').value.trim();
-      if (!name || !address) return;
-      const pm = document.getElementById('inputPM').value.trim();
-      const type = document.getElementById('inputType').value;
-      const units = document.getElementById('inputUnits').value.trim();
-      const start = document.getElementById('inputStart').value;
-      const end = document.getElementById('inputEnd').value;
-      const status = document.getElementById('inputStatus').value;
-      const percent = parseInt(document.getElementById('inputPercent').value) || 0;
-
-      document.getElementById('modalSaveBtn').textContent = 'Saving...';
-
-      if (editingId !== null) {
-        const job = jobs.find(j => j.fbKey === editingId);
-        if (job) await saveToFirebase({ ...job, name, address, pm, type, units, start, end, status, percent });
-        closeModal(); return;
-      }
-
-      let lat = 34.44, lng = -77.56;
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
-        const data = await res.json();
-        if (data.length > 0) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
-      } catch {}
-
-      await saveToFirebase({ name, address, lat, lng, pm, type, units, start, end, status, percent });
-      closeModal();
-    };
-
-    // seed initial jobs if DB is empty
-    onValue(jobsRef, (snapshot) => {
-      if (!snapshot.val()) {
-        push(jobsRef, { name: "Turtle Cay Villas", address: "211 N Shore Drive, Surf City, NC 28445", lat: 34.4275464, lng: -77.5422753, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
-        push(jobsRef, { name: "Topsail Landing Apts Phase II", address: "400 Gateway Condo Drive, Surf City, NC", lat: 34.4483438, lng: -77.5615301, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
-      }
-    }, { onlyOnce: true });
-
-  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'IBM Plex Mono', monospace; background: #0f1117; color: #e8e0d0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -319,16 +59,18 @@
     .add-btn:hover { background: #f4a830; color: #0f1117; }
     .map-container { flex: 1; position: relative; }
     #map { width: 100%; height: 100%; }
-    .leaflet-popup-content-wrapper { background: #13161e; border: 1px solid #f4a830; border-radius: 2px; color: #e8e0d0; font-family: 'IBM Plex Mono', monospace; box-shadow: 0 4px 16px rgba(0,0,0,0.6); }
-    .leaflet-popup-tip { background: #13161e; }
-    .leaflet-popup-content { margin: 12px 14px; font-size: 11px; line-height: 1.6; min-width: 160px; }
-    .popup-name { font-size: 13px; font-weight: 600; color: #f4a830; margin-bottom: 4px; }
-    .popup-addr { font-size: 10px; color: #666; margin-bottom: 6px; }
-    .popup-row { display: flex; justify-content: space-between; gap: 12px; }
-    .popup-item { font-size: 10px; }
-    .popup-lbl { color: #555; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9px; }
-    .popup-val { color: #aaa; }
-    .popup-val.pm { color: #e8c87a; }
+    /* Info window styling */
+    .gm-style .gm-style-iw-c { background: #13161e !important; border: 1px solid #f4a830 !important; border-radius: 2px !important; padding: 0 !important; }
+    .gm-style .gm-style-iw-d { overflow: hidden !important; }
+    .gm-style .gm-style-iw-t::after { background: #13161e !important; }
+    .gm-style .gm-style-iw-tc::after { background: #13161e !important; }
+    .iw-content { padding: 12px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #e8e0d0; min-width: 180px; }
+    .iw-name { font-size: 13px; font-weight: 600; color: #f4a830; margin-bottom: 4px; }
+    .iw-addr { font-size: 10px; color: #666; margin-bottom: 6px; }
+    .iw-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .iw-lbl { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+    .iw-val { font-size: 10px; color: #aaa; }
+    .iw-val.pm { color: #e8c87a; }
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
     .modal-bg.open { display: flex; }
     .modal { background: #13161e; border: 1px solid #f4a830; padding: 24px; width: 400px; max-height: 92vh; overflow-y: auto; font-family: 'IBM Plex Mono', monospace; }
@@ -436,5 +178,315 @@
     </div>
   </div>
 </div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZKPLWcNpVuVWhpAnkU5A0_ZxRJQBtXpE",
+    authDomain: "oib-projects.firebaseapp.com",
+    databaseURL: "https://oib-projects-default-rtdb.firebaseio.com",
+    projectId: "oib-projects",
+    storageBucket: "oib-projects.firebasestorage.app",
+    messagingSenderId: "504283453184",
+    appId: "1:504283453184:web:97b40026523231569105e5"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getDatabase(fbApp);
+  const jobsRef = ref(db, 'jobs');
+
+  const STATUS_LABELS = { active: 'Active', completed: 'Completed', upcoming: 'Upcoming' };
+  const STATUS_COLORS = { active: '#f4a830', completed: '#4ab0f4', upcoming: '#d4c860' };
+
+  let jobs = [];
+  let activeJob = null, editingId = null;
+  let showSelectedOnly = false;
+  let pinnedIds = new Set();
+  let gmap = null;
+  let gmMarkers = {};
+  let infoWindow = null;
+  let mapInitialized = false;
+
+  // ── Google Maps init (called by API callback) ───────────────────────────────
+  window.initMap = function() {
+    gmap = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 34.438, lng: -77.552 },
+      zoom: 13,
+      mapTypeId: 'roadmap',
+      styles: [
+        { featureType: 'all', elementType: 'geometry', stylers: [{ color: '#1a1e2a' }] },
+        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1520' }] },
+        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2d3a' }] },
+        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a1d2a' }] },
+        { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#1e2230' }] },
+        { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#1e2230' }] },
+        { featureType: 'all', elementType: 'labels.text.stroke', stylers: [{ color: '#0f1117' }] },
+        { featureType: 'all', elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+        { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888' }] },
+        { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#2a2d38' }] },
+        { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] }
+      ],
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: true
+    });
+    infoWindow = new google.maps.InfoWindow();
+    mapInitialized = true;
+    if (jobs.length > 0) { rebuildMarkers(); fitMap(); }
+  };
+
+  // ── Firebase ────────────────────────────────────────────────────────────────
+  onValue(jobsRef, (snapshot) => {
+    const data = snapshot.val();
+    jobs = data ? Object.entries(data).map(([fbKey, val]) => ({ ...val, fbKey })) : [];
+    renderJobs();
+    if (mapInitialized) { rebuildMarkers(); fitMap(); }
+    document.getElementById('loadingMsg').style.display = 'none';
+  });
+
+  async function saveToFirebase(jobData) {
+    if (jobData.fbKey) {
+      const { fbKey, ...data } = jobData;
+      await update(ref(db, `jobs/${fbKey}`), data);
+    } else {
+      await push(jobsRef, jobData);
+    }
+  }
+
+  async function deleteFromFirebase(fbKey) {
+    await remove(ref(db, `jobs/${fbKey}`));
+  }
+
+  // Seed if empty
+  onValue(jobsRef, (snapshot) => {
+    if (!snapshot.val()) {
+      push(jobsRef, { name: "Turtle Cay Villas", address: "211 N Shore Drive, Surf City, NC 28445", lat: 34.4275464, lng: -77.5422753, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
+      push(jobsRef, { name: "Topsail Landing Apts Phase II", address: "400 Gateway Condo Drive, Surf City, NC", lat: 34.4483438, lng: -77.5615301, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
+    }
+  }, { onlyOnce: true });
+
+  // ── Map helpers ─────────────────────────────────────────────────────────────
+  function makeMarkerIcon(job, isSelected) {
+    const color = isSelected ? '#ffffff' : STATUS_COLORS[job.status] || '#f4a830';
+    const stroke = isSelected ? '#f4a830' : '#0f1117';
+    const num = jobs.indexOf(job) + 1;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+      <path d="M18 0 C8.06 0 0 8.06 0 18 C0 31.5 18 44 18 44 C18 44 36 31.5 36 18 C36 8.06 27.94 0 18 0Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>
+      <text x="18" y="23" text-anchor="middle" font-size="13" font-weight="bold" font-family="monospace" fill="#0f1117">${num}</text>
+    </svg>`;
+    return {
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(36, 44),
+      anchor: new google.maps.Point(18, 44)
+    };
+  }
+
+  function makeInfoContent(job) {
+    return `<div class="iw-content">
+      <div class="iw-name">${job.name}</div>
+      <div class="iw-addr">${job.address}</div>
+      <div class="iw-row">
+        <div><div class="iw-lbl">Status</div><div class="iw-val">${STATUS_LABELS[job.status]}</div></div>
+        <div><div class="iw-lbl">Complete</div><div class="iw-val">${job.percent || 0}%</div></div>
+      </div>
+      ${job.pm ? `<div class="iw-row"><div><div class="iw-lbl">PM</div><div class="iw-val pm">${job.pm}</div></div>${job.type ? `<div><div class="iw-lbl">Type</div><div class="iw-val">${job.type}</div></div>` : ''}</div>` : ''}
+    </div>`;
+  }
+
+  function rebuildMarkers() {
+    Object.values(gmMarkers).forEach(m => m.setMap(null));
+    gmMarkers = {};
+    const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
+    visible.forEach(job => {
+      const isSelected = activeJob === job.fbKey;
+      const marker = new google.maps.Marker({
+        position: { lat: job.lat, lng: job.lng },
+        map: gmap,
+        icon: makeMarkerIcon(job, isSelected),
+        title: job.name,
+        animation: isSelected ? google.maps.Animation.DROP : null
+      });
+      marker.addListener('click', () => {
+        activeJob = job.fbKey;
+        infoWindow.setContent(makeInfoContent(job));
+        infoWindow.open(gmap, marker);
+        renderJobs();
+        rebuildMarkers();
+      });
+      if (isSelected) {
+        infoWindow.setContent(makeInfoContent(job));
+        infoWindow.open(gmap, marker);
+      }
+      gmMarkers[job.fbKey] = marker;
+    });
+  }
+
+  function fitMap() {
+    if (!gmap) return;
+    const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
+    if (visible.length === 0) return;
+    if (visible.length === 1) { gmap.setCenter({ lat: visible[0].lat, lng: visible[0].lng }); gmap.setZoom(15); return; }
+    const bounds = new google.maps.LatLngBounds();
+    visible.forEach(j => bounds.extend({ lat: j.lat, lng: j.lng }));
+    gmap.fitBounds(bounds, 80);
+  }
+
+  function focusJob(job) {
+    activeJob = job.fbKey;
+    if (gmap) { gmap.panTo({ lat: job.lat, lng: job.lng }); gmap.setZoom(16); }
+    renderJobs(); rebuildMarkers();
+  }
+
+  // ── Toggle ──────────────────────────────────────────────────────────────────
+  window.toggleMapMode = function() {
+    showSelectedOnly = !showSelectedOnly;
+    document.getElementById('toggleTrack').classList.toggle('on', showSelectedOnly);
+    document.getElementById('toggleLabel').textContent = showSelectedOnly ? 'Selected Only' : 'Show Selected Only';
+    if (!showSelectedOnly) activeJob = null;
+    renderJobs(); rebuildMarkers(); fitMap();
+  };
+
+  window.togglePin = function(fbKey, e) {
+    e.stopPropagation();
+    if (pinnedIds.has(fbKey)) pinnedIds.delete(fbKey); else pinnedIds.add(fbKey);
+    renderJobs();
+    if (showSelectedOnly) { rebuildMarkers(); fitMap(); }
+  };
+
+  // ── Render sidebar ──────────────────────────────────────────────────────────
+  function getProgressColor(pct) { return pct < 30 ? '#f87171' : pct < 70 ? '#f4a830' : '#4caf50'; }
+  function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
+
+  function renderJobs() {
+    const list = document.getElementById('jobList');
+    list.innerHTML = '';
+    jobs.forEach((job, i) => {
+      const isPinned = pinnedIds.has(job.fbKey);
+      const isActive = activeJob === job.fbKey;
+      const pct = job.percent || 0;
+      const div = document.createElement('div');
+      div.className = 'job-item' + (isActive ? ' active' : '');
+      div.innerHTML = `
+        <div class="job-top">
+          <div class="job-number">SITE #${String(i+1).padStart(2,'0')}</div>
+          <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+        </div>
+        <div class="job-name">${job.name}</div>
+        <div class="job-address">${job.address}</div>
+        <div class="tag-row">
+          ${job.type ? `<span class="tag">${job.type}</span>` : ''}
+          ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
+          <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
+          <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
+        </div>
+        <div class="progress-row">
+          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${getProgressColor(pct)}"></div></div>
+          <div class="progress-label">${pct}%</div>
+        </div>
+        <div class="btn-row">
+          <button class="edit-btn" onclick="openEdit('${job.fbKey}',event)">✎ edit</button>
+          <button class="del-btn" onclick="confirmDelete('${job.fbKey}',event)">✕ delete</button>
+          <button class="pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePin('${job.fbKey}',event)">${isPinned ? '★ pinned' : '☆ pin'}</button>
+        </div>
+      `;
+      div.onclick = (e) => {
+        if (['edit-btn','del-btn','pin-btn'].some(c => e.target.classList.contains(c))) return;
+        focusJob(job);
+      };
+      list.appendChild(div);
+    });
+    document.getElementById('count').textContent = jobs.length;
+  }
+
+  // ── Delete ──────────────────────────────────────────────────────────────────
+  window.confirmDelete = function(fbKey, e) {
+    e.stopPropagation();
+    if (confirm('Delete this job site?')) {
+      deleteFromFirebase(fbKey);
+      if (activeJob === fbKey) activeJob = null;
+      pinnedIds.delete(fbKey);
+    }
+  };
+
+  // ── Modal ───────────────────────────────────────────────────────────────────
+  window.openModal = function() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = 'Add Job Site';
+    document.getElementById('modalSaveBtn').textContent = 'Add Site';
+    ['inputName','inputAddress','inputPM','inputUnits','inputStart','inputEnd'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('inputType').value = '';
+    document.getElementById('inputStatus').value = 'active';
+    document.getElementById('inputPercent').value = 0;
+    document.getElementById('rangeVal').textContent = '0%';
+    document.getElementById('modalBg').classList.add('open');
+    document.getElementById('inputName').focus();
+  };
+
+  window.openEdit = function(fbKey, e) {
+    e.stopPropagation();
+    const job = jobs.find(j => j.fbKey === fbKey); if (!job) return;
+    editingId = fbKey;
+    document.getElementById('modalTitle').textContent = 'Edit Job Site';
+    document.getElementById('modalSaveBtn').textContent = 'Save Changes';
+    document.getElementById('inputName').value = job.name;
+    document.getElementById('inputAddress').value = job.address;
+    document.getElementById('inputPM').value = job.pm || '';
+    document.getElementById('inputType').value = job.type || '';
+    document.getElementById('inputUnits').value = job.units || '';
+    document.getElementById('inputStart').value = job.start || '';
+    document.getElementById('inputEnd').value = job.end || '';
+    document.getElementById('inputStatus').value = job.status;
+    document.getElementById('inputPercent').value = job.percent || 0;
+    document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
+    document.getElementById('modalBg').classList.add('open');
+  };
+
+  window.closeModal = function() { document.getElementById('modalBg').classList.remove('open'); editingId = null; };
+
+  window.saveJob = async function() {
+    const name = document.getElementById('inputName').value.trim();
+    const address = document.getElementById('inputAddress').value.trim();
+    if (!name || !address) return;
+    const pm = document.getElementById('inputPM').value.trim();
+    const type = document.getElementById('inputType').value;
+    const units = document.getElementById('inputUnits').value.trim();
+    const start = document.getElementById('inputStart').value;
+    const end = document.getElementById('inputEnd').value;
+    const status = document.getElementById('inputStatus').value;
+    const percent = parseInt(document.getElementById('inputPercent').value) || 0;
+
+    document.getElementById('modalSaveBtn').textContent = 'Saving...';
+
+    if (editingId !== null) {
+      const job = jobs.find(j => j.fbKey === editingId);
+      if (job) await saveToFirebase({ ...job, name, address, pm, type, units, start, end, status, percent });
+      closeModal(); return;
+    }
+
+    let lat = 34.44, lng = -77.56;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
+      const data = await res.json();
+      if (data.length > 0) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
+    } catch {}
+
+    await saveToFirebase({ name, address, lat, lng, pm, type, units, start, end, status, percent });
+    closeModal();
+  };
+
+</script>
+
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAHt3ZsJ_pLlyo-75KK6XXakiTWCggbII0&callback=initMap" async defer></script>
+
 </body>
 </html>
