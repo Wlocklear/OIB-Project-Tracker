@@ -111,11 +111,11 @@
     /* ── Drag Pin Modal ── */
     #pinModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center; }
     #pinModal.open { display:flex; }
-    .pin-modal-inner { background:#13161e; border:1px solid #f4a830; width:600px; max-width:95vw; font-family:'IBM Plex Mono',monospace; }
+    .pin-modal-inner { background:#13161e; border:1px solid #f4a830; width:860px; max-width:95vw; font-family:'IBM Plex Mono',monospace; }
     .pin-modal-header { padding:14px 18px; border-bottom:1px solid #2a2d38; display:flex; justify-content:space-between; align-items:center; }
     .pin-modal-header h3 { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; color:#f4a830; }
     .pin-modal-header p { font-size:10px; color:#555; letter-spacing:0.5px; }
-    #pinPickerMap { width:100%; height:320px; }
+    #pinPickerMap { width:100%; height:520px; }
     .pin-modal-footer { padding:12px 18px; display:flex; align-items:center; gap:10px; border-top:1px solid #2a2d38; }
     .pin-coords-display { flex:1; font-size:11px; color:#888; }
     .pin-coords-display span { color:#f4a830; }
@@ -275,7 +275,10 @@
     </div>
     <div id="pinPickerMap"></div>
     <div class="pin-modal-footer">
-      <div class="pin-coords-display">Lat: <span id="pinLat">—</span> &nbsp; Lng: <span id="pinLng">—</span></div>
+      <div style="flex:1">
+        <div class="pin-coords-display">Lat: <span id="pinLat">—</span> &nbsp; Lng: <span id="pinLng">—</span></div>
+        <div id="pinAddrStatus" style="font-size:10px;color:#888;margin-top:4px;letter-spacing:0.3px;"></div>
+      </div>
       <button class="btn-pin-cancel" onclick="closePinPicker()">Cancel</button>
       <button class="btn-pin-confirm" onclick="confirmPin()">Use This Location</button>
     </div>
@@ -366,6 +369,15 @@
     }
   }, { onlyOnce: true });
 
+  // ── Reverse Geocode ─────────────────────────────────────────────────────────
+  async function reverseGeocode(lat, lng) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const data = await res.json();
+      return data.display_name || '';
+    } catch { return ''; }
+  }
+
   // ── Pin Picker ──────────────────────────────────────────────────────────────
   window.openPinPicker = function() {
     document.getElementById('pinModal').classList.add('open');
@@ -381,13 +393,16 @@
           mapTypeControl: false,
           fullscreenControl: false
         });
-        pinPickerMap.addListener('click', (e) => {
+        pinPickerMap.addListener('click', async (e) => {
           selectedPinLat = e.latLng.lat();
           selectedPinLng = e.latLng.lng();
           document.getElementById('pinLat').textContent = selectedPinLat.toFixed(6);
           document.getElementById('pinLng').textContent = selectedPinLng.toFixed(6);
+          document.getElementById('pinAddrStatus').textContent = '⟳ Looking up address...';
           if (pinPickerMarker) pinPickerMarker.setMap(null);
           pinPickerMarker = new google.maps.Marker({ position: e.latLng, map: pinPickerMap });
+          const addr = await reverseGeocode(selectedPinLat, selectedPinLng);
+          document.getElementById('pinAddrStatus').textContent = addr ? '📍 ' + addr : '';
         });
       } else {
         google.maps.event.trigger(pinPickerMap, 'resize');
@@ -403,6 +418,10 @@
     if (selectedPinLat !== null && selectedPinLng !== null) {
       document.getElementById('inputLat').value = selectedPinLat.toFixed(6);
       document.getElementById('inputLng').value = selectedPinLng.toFixed(6);
+      const addrStatus = document.getElementById('pinAddrStatus').textContent;
+      if (addrStatus.startsWith('📍 ')) {
+        document.getElementById('inputAddress').value = addrStatus.replace('📍 ', '');
+      }
     }
     closePinPicker();
   };
@@ -487,6 +506,8 @@
         const newLat = e.latLng.lat();
         const newLng = e.latLng.lng();
         job.lat = newLat; job.lng = newLng;
+        const newAddr = await reverseGeocode(newLat, newLng);
+        if (newAddr) job.address = newAddr;
         await saveToFirebase(job);
       });
       if (isSelected) {
@@ -561,6 +582,7 @@
           <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
           <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
         </div>
+        ${job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a5a;letter-spacing:0.5px;margin-bottom:6px;">📍 ${job.lat.toFixed(5)}, ${job.lng.toFixed(5)}</div>` : ''}
         <div class="progress-row">
           <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${progColor}"></div></div>
           <div class="progress-label">${pct}%</div>
