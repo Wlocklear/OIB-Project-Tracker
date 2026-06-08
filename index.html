@@ -78,8 +78,7 @@
     .map-container { flex: 1; position: relative; }
     #map { width: 100%; height: 100%; }
 
-    /* ── Mobile Tab Nav ── */
-    .mobile-tabs { display: none; }
+    .mobile-view-toggle { display: none; }
 
     /* ── Mobile Responsive ── */
     @media (max-width: 640px) {
@@ -91,10 +90,10 @@
       .sidebar.mobile-active { display: flex; flex: 1; overflow: hidden; }
       .map-container { display: none; flex: 1; }
       .map-container.mobile-active { display: block; }
-      .mobile-tabs { display: flex; background: #0f1117; border-top: 2px solid #f4a830; flex-shrink: 0; }
-      .mobile-tab { flex: 1; padding: 12px 8px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #555; cursor: pointer; border: none; background: none; transition: all 0.2s; }
-      .mobile-tab.active { color: #f4a830; background: #13161e; }
-      .mobile-tab .tab-icon { font-size: 16px; display: block; margin-bottom: 3px; }
+      .mobile-tabs { display: none; }
+      .mobile-view-toggle { display: flex; background: #1a1e2a; border-radius: 4px; overflow: hidden; border: 1px solid #2a2d38; }
+      .mobile-view-btn { padding: 5px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #555; cursor: pointer; border: none; background: none; transition: all 0.2s; white-space: nowrap; }
+      .mobile-view-btn.active { background: #f4a830; color: #0f1117; font-weight: 600; }
       .modal { width: 95vw; padding: 16px; }
       .two-col { grid-template-columns: 1fr; }
     }
@@ -169,6 +168,11 @@
   <div class="logo">⚒ Job Site Tracker</div>
   <div class="header-right">
     <div><span class="sync-dot"></span><span class="sync-label">LIVE</span></div>
+    <!-- Mobile List/Map toggle -->
+    <div class="mobile-view-toggle" id="mobileViewToggle">
+      <button class="mobile-view-btn active" id="mobileListBtn" onclick="switchTab('list')">☰ List</button>
+      <button class="mobile-view-btn" id="mobileMapBtn" onclick="switchTab('map')">🗺 Map</button>
+    </div>
     <div class="map-toggle">
       <div class="toggle-track" id="toggleTrack" onclick="toggleMapMode()">
         <div class="toggle-thumb"></div>
@@ -199,18 +203,6 @@
   </div>
 </div>
 
-<!-- Mobile Tab Bar -->
-<div class="mobile-tabs">
-  <button class="mobile-tab active" id="tabList" onclick="switchTab('list')">
-    <span class="tab-icon">☰</span>Sites
-  </button>
-  <button class="mobile-tab" id="tabMap" onclick="switchTab('map')">
-    <span class="tab-icon">🗺</span>Map
-  </button>
-  <button class="mobile-tab" id="tabAdd" onclick="openModal()">
-    <span class="tab-icon">＋</span>Add
-  </button>
-</div>
 
 <!-- Add/Edit Modal -->
 <div class="modal-bg" id="modalBg">
@@ -504,18 +496,18 @@
   window.switchTab = function(tab) {
     const sidebar = document.getElementById('sidebar');
     const mapContainer = document.getElementById('mapContainer');
-    const tabList = document.getElementById('tabList');
-    const tabMap = document.getElementById('tabMap');
+    const listBtn = document.getElementById('mobileListBtn');
+    const mapBtn = document.getElementById('mobileMapBtn');
     if (tab === 'list') {
       sidebar.classList.add('mobile-active');
       mapContainer.classList.remove('mobile-active');
-      tabList.classList.add('active');
-      tabMap.classList.remove('active');
+      listBtn.classList.add('active');
+      mapBtn.classList.remove('active');
     } else {
       sidebar.classList.remove('mobile-active');
       mapContainer.classList.add('mobile-active');
-      tabMap.classList.add('active');
-      tabList.classList.remove('active');
+      mapBtn.classList.add('active');
+      listBtn.classList.remove('active');
       if (gmap) google.maps.event.trigger(gmap, 'resize');
     }
   };
@@ -642,7 +634,7 @@
         icon: makeMarkerIcon(job, isSelected),
         title: job.name,
         animation: isSelected ? google.maps.Animation.DROP : null,
-        draggable: true
+        draggable: false
       });
       marker.addListener('click', () => {
         activeJob = job.fbKey;
@@ -650,14 +642,6 @@
         infoWindow.open(gmap, marker);
         renderJobs();
         rebuildMarkers();
-      });
-      marker.addListener('dragend', async (e) => {
-        const newLat = e.latLng.lat();
-        const newLng = e.latLng.lng();
-        job.lat = newLat; job.lng = newLng;
-        const newAddr = await reverseGeocode(newLat, newLng);
-        if (newAddr) job.address = newAddr;
-        await saveToFirebase(job);
       });
       if (isSelected) {
         infoWindow.setContent(makeInfoContent(job));
