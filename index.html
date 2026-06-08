@@ -8,6 +8,9 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'IBM Plex Mono', monospace; background: #0f1117; color: #e8e0d0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+
+
     header { background: #0f1117; border-bottom: 2px solid #f4a830; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .logo { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: #f4a830; }
     .header-right { display: flex; align-items: center; gap: 16px; }
@@ -23,14 +26,14 @@
     .toggle-track.on .toggle-thumb { left: 23px; }
     .toggle-label { color: #888; }
     .main { display: flex; flex: 1; overflow: hidden; }
-    .sidebar { width: 285px; background: #13161e; border-right: 1px solid #2a2d38; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+    .sidebar { width: 300px; background: #13161e; border-right: 1px solid #2a2d38; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
     .sidebar-header { padding: 14px 16px 10px; font-size: 10px; letter-spacing: 2px; color: #f4a830; text-transform: uppercase; border-bottom: 1px solid #2a2d38; }
     .job-list { padding: 8px 0; flex: 1; }
     #loadingMsg { padding: 20px 16px; font-size: 11px; color: #555; letter-spacing: 1px; }
     .job-item { padding: 12px 16px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #1e2130; }
     .job-item:hover, .job-item.active { background: #1a1e2a; border-left-color: #f4a830; }
     .job-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-    .job-number { font-size: 10px; color: #f4a830; letter-spacing: 1px; }
+    .job-projnum { font-size: 10px; color: #f4a830; letter-spacing: 1px; }
     .status-badge { font-size: 9px; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 2px; font-weight: 600; text-transform: uppercase; }
     .status-active { background: #1a3a1a; color: #4caf50; }
     .status-completed { background: #1a2a3a; color: #4ab0f4; }
@@ -44,6 +47,7 @@
     .meta-label { font-size: 9px; color: #555; letter-spacing: 0.5px; text-transform: uppercase; }
     .meta-value { font-size: 10px; color: #aaa; }
     .meta-value.pm { color: #e8c87a; }
+    .meta-value.gc { color: #a0c4e8; }
     .progress-row { display: flex; align-items: center; gap: 8px; }
     .progress-bar-bg { flex: 1; height: 4px; background: #2a2d38; border-radius: 2px; overflow: hidden; }
     .progress-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
@@ -63,28 +67,37 @@
     .gm-style .gm-style-iw-d { overflow: hidden !important; }
     .gm-style .gm-style-iw-t::after { background: #13161e !important; }
     .gm-style .gm-style-iw-tc::after { background: #13161e !important; }
-    .iw-content { padding: 12px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #e8e0d0; min-width: 180px; }
-    .iw-name { font-size: 13px; font-weight: 600; color: #f4a830; margin-bottom: 4px; }
-    .iw-addr { font-size: 10px; color: #666; margin-bottom: 6px; }
-    .iw-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
-    .iw-lbl { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
-    .iw-val { font-size: 10px; color: #aaa; }
+    .iw-content { padding: 18px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #e8e0d0; min-width: 300px; }
+    .iw-name { font-size: 17px; font-weight: 600; color: #f4a830; margin-bottom: 2px; line-height: 1.3; }
+    .iw-projnum { font-size: 10px; color: #666; letter-spacing: 1px; margin-bottom: 6px; }
+    .iw-addr { font-size: 12px; color: #888; margin-bottom: 12px; line-height: 1.5; }
+    .iw-divider { border: none; border-top: 1px solid #2a2d38; margin: 10px 0; }
+    .iw-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    .iw-lbl { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+    .iw-val { font-size: 13px; color: #ccc; }
     .iw-val.pm { color: #e8c87a; }
-    .iw-btns { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
-    .iw-btn { display: block; text-align: center; padding: 6px 10px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; text-decoration: none; border: 1px solid #2a2d38; color: #aaa; border-radius: 2px; transition: all 0.15s; }
+    .iw-val.gc { color: #a0c4e8; }
+    .iw-progress-bg { flex: 1; height: 5px; background: #2a2d38; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+    .iw-progress-fill { height: 100%; border-radius: 2px; }
+    .iw-btns { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+    .iw-btn { display: block; text-align: center; padding: 9px 14px; font-size: 12px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; text-decoration: none; border: 1px solid #2a2d38; color: #aaa; border-radius: 2px; transition: all 0.15s; }
     .iw-btn:hover { border-color: #f4a830; color: #f4a830; }
     .iw-btn-primary { background: #f4a830; color: #0f1117 !important; border-color: #f4a830; font-weight: 600; }
     .iw-btn-primary:hover { background: #e09520; }
+
+    /* ── Modal ── */
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
     .modal-bg.open { display: flex; }
-    .modal { background: #13161e; border: 1px solid #f4a830; padding: 24px; width: 400px; max-height: 92vh; overflow-y: auto; font-family: 'IBM Plex Mono', monospace; }
+    .modal { background: #13161e; border: 1px solid #f4a830; padding: 24px; width: 460px; max-height: 92vh; overflow-y: auto; font-family: 'IBM Plex Mono', monospace; }
     .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: #f4a830; margin-bottom: 16px; }
     .modal label { display: block; font-size: 10px; letter-spacing: 1px; color: #888; text-transform: uppercase; margin-bottom: 4px; margin-top: 12px; }
-    .modal input, .modal select { width: 100%; background: #0f1117; border: 1px solid #2a2d38; color: #e8e0d0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 10px; outline: none; }
+    .modal input, .modal select, .modal textarea { width: 100%; background: #0f1117; border: 1px solid #2a2d38; color: #e8e0d0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 10px; outline: none; }
     .modal input:focus, .modal select:focus { border-color: #f4a830; }
     .modal select option { background: #13161e; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .two-col > div label { margin-top: 0; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .three-col > div label { margin-top: 0; }
     .range-row { display: flex; align-items: center; gap: 10px; }
     .range-row input[type=range] { flex: 1; accent-color: #f4a830; }
     .range-val { font-size: 12px; color: #f4a830; min-width: 36px; }
@@ -93,9 +106,28 @@
     .btn-cancel { flex: 1; padding: 10px; background: transparent; color: #888; border: 1px solid #2a2d38; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
     .btn-cancel:hover { color: #e8e0d0; border-color: #888; }
     .divider { border: none; border-top: 1px solid #2a2d38; margin: 14px 0 2px; }
+    .coord-hint { font-size: 9px; color: #555; margin-top: 4px; letter-spacing: 0.5px; }
+
+    /* ── Drag Pin Modal ── */
+    #pinModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center; }
+    #pinModal.open { display:flex; }
+    .pin-modal-inner { background:#13161e; border:1px solid #f4a830; width:600px; max-width:95vw; font-family:'IBM Plex Mono',monospace; }
+    .pin-modal-header { padding:14px 18px; border-bottom:1px solid #2a2d38; display:flex; justify-content:space-between; align-items:center; }
+    .pin-modal-header h3 { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; color:#f4a830; }
+    .pin-modal-header p { font-size:10px; color:#555; letter-spacing:0.5px; }
+    #pinPickerMap { width:100%; height:320px; }
+    .pin-modal-footer { padding:12px 18px; display:flex; align-items:center; gap:10px; border-top:1px solid #2a2d38; }
+    .pin-coords-display { flex:1; font-size:11px; color:#888; }
+    .pin-coords-display span { color:#f4a830; }
+    .btn-pin-confirm { padding:8px 16px; background:#f4a830; color:#0f1117; border:none; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+    .btn-pin-cancel { padding:8px 16px; background:transparent; color:#888; border:1px solid #2a2d38; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+    .set-pin-btn { font-size:10px; background:none; border:1px solid #2a2d38; color:#888; font-family:'IBM Plex Mono',monospace; letter-spacing:1px; text-transform:uppercase; padding:4px 8px; cursor:pointer; transition:all 0.15s; margin-top:6px; }
+    .set-pin-btn:hover { border-color:#f4a830; color:#f4a830; }
   </style>
 </head>
 <body>
+
+
 <header>
   <div class="logo">⚒ Job Site Tracker</div>
   <div class="header-right">
@@ -122,30 +154,77 @@
   </div>
 </div>
 
+<!-- Add/Edit Modal -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
     <h2 id="modalTitle">Add Job Site</h2>
+
+    <label>Project Number</label>
+    <input type="text" id="inputProjNum" placeholder="e.g. 2024-001" />
+
     <label>Job Name</label>
     <input type="text" id="inputName" placeholder="e.g. Sunset Ridge Phase 1" />
+
     <label>Address</label>
     <input type="text" id="inputAddress" placeholder="e.g. 123 Main St, Surf City, NC" />
+
+    <label>Lat / Lng Coordinates <span style="color:#555;font-size:9px">(optional override)</span></label>
+    <div class="two-col">
+      <div>
+        <input type="text" id="inputLat" placeholder="e.g. 34.4275" />
+      </div>
+      <div>
+        <input type="text" id="inputLng" placeholder="e.g. -77.5422" />
+      </div>
+    </div>
+    <button class="set-pin-btn" onclick="openPinPicker()">📍 Set Pin on Map</button>
+    <div class="coord-hint">Leave blank to auto-geocode from address. Use pin picker or enter coords to place manually.</div>
+
+    <hr class="divider">
+    <div class="two-col">
+      <div>
+        <label>General Contractor</label>
+        <input type="text" id="inputGC" placeholder="e.g. Acme Construction" />
+      </div>
+      <div>
+        <label>GC Project Manager</label>
+        <input type="text" id="inputGCPM" placeholder="e.g. Jane Doe" />
+      </div>
+    </div>
+
     <label>Project Manager</label>
     <input type="text" id="inputPM" placeholder="e.g. John Smith" />
+
     <hr class="divider">
     <div class="two-col">
       <div>
         <label>Project Type</label>
         <select id="inputType">
           <option value="">— Select —</option>
-          <option>Single Family</option>
-          <option>Multi-Family</option>
-          <option>Townhomes</option>
-          <option>Condos</option>
-          <option>Apartments</option>
-          <option>Commercial</option>
-          <option>Mixed Use</option>
-          <option>Renovation</option>
-          <option>Other</option>
+          <option>Commercial D/B-Office Building</option>
+          <option>Commercial D/B-Warehouse</option>
+          <option>Commercial D/B-Warehouse Shell</option>
+          <option>Commercial-Assisted Living</option>
+          <option>Commercial-Hanger</option>
+          <option>Commercial-Hotel</option>
+          <option>Commercial-MOB</option>
+          <option>Commercial-Office Building</option>
+          <option>Commercial-Office Upfit</option>
+          <option>Commercial-Remodel</option>
+          <option>Commercial-Restaurant</option>
+          <option>Commercial-Retail</option>
+          <option>Commercial-Retail Shell</option>
+          <option>Commercial-Warehouse</option>
+          <option>Commercial-Warehouse Shell</option>
+          <option>MF-Garden</option>
+          <option>MF-Hotel</option>
+          <option>MF-Manor</option>
+          <option>MF-Podium</option>
+          <option>MF-Renovation</option>
+          <option>MF-Sitework</option>
+          <option>MF-Sr. Living</option>
+          <option>MF-Townhomes</option>
+          <option>MF-Wrap</option>
         </select>
       </div>
       <div>
@@ -153,6 +232,7 @@
         <input type="number" id="inputUnits" placeholder="e.g. 24" min="0" />
       </div>
     </div>
+
     <hr class="divider">
     <div class="two-col">
       <div>
@@ -164,6 +244,7 @@
         <input type="date" id="inputEnd" />
       </div>
     </div>
+
     <hr class="divider">
     <label>Status</label>
     <select id="inputStatus">
@@ -179,6 +260,24 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" id="modalSaveBtn" onclick="saveJob()">Add Site</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pin Picker Modal -->
+<div id="pinModal">
+  <div class="pin-modal-inner">
+    <div class="pin-modal-header">
+      <div>
+        <h3>📍 Set Pin Location</h3>
+        <p>Click anywhere on the map to place the pin</p>
+      </div>
+    </div>
+    <div id="pinPickerMap"></div>
+    <div class="pin-modal-footer">
+      <div class="pin-coords-display">Lat: <span id="pinLat">—</span> &nbsp; Lng: <span id="pinLng">—</span></div>
+      <button class="btn-pin-cancel" onclick="closePinPicker()">Cancel</button>
+      <button class="btn-pin-confirm" onclick="confirmPin()">Use This Location</button>
     </div>
   </div>
 </div>
@@ -210,31 +309,22 @@
   let showSelectedOnly = false;
   let pinnedIds = new Set();
   let gmap = null;
+  let pinPickerMap = null, pinPickerMarker = null;
+  let selectedPinLat = null, selectedPinLng = null;
   let gmMarkers = {};
   let infoWindow = null;
   let mapInitialized = false;
+
+
+
 
   // ── Google Maps init ────────────────────────────────────────────────────────
   window.__mapsReady.then(() => {
     gmap = new google.maps.Map(document.getElementById('map'), {
       center: { lat: 34.438, lng: -77.552 },
       zoom: 13,
-      mapTypeId: 'roadmap',
-      styles: [
-        { featureType: 'all', elementType: 'geometry', stylers: [{ color: '#1a1e2a' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1520' }] },
-        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2d3a' }] },
-        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a1d2a' }] },
-        { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#1e2230' }] },
-        { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#1e2230' }] },
-        { featureType: 'all', elementType: 'labels.text.stroke', stylers: [{ color: '#0f1117' }] },
-        { featureType: 'all', elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
-        { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888' }] },
-        { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#2a2d38' }] },
-        { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
-        { featureType: 'poi', elementType: 'all', stylers: [{ visibility: 'off' }] },
-        { featureType: 'transit', elementType: 'all', stylers: [{ visibility: 'off' }] }
-      ],
+      mapTypeId: 'satellite',
+      styles: [],
       disableDefaultUI: false,
       zoomControl: true,
       mapTypeControl: true,
@@ -271,19 +361,60 @@
   // Seed if empty
   onValue(jobsRef, (snapshot) => {
     if (!snapshot.val()) {
-      push(jobsRef, { name: "Turtle Cay Villas", address: "211 N Shore Drive, Surf City, NC 28445", lat: 34.4275464, lng: -77.5422753, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
-      push(jobsRef, { name: "Topsail Landing Apts Phase II", address: "400 Gateway Condo Drive, Surf City, NC", lat: 34.4483438, lng: -77.5615301, status: 'active', percent: 0, pm: '', start: '', end: '', type: '', units: '' });
+      push(jobsRef, { projNum: '', name: "Turtle Cay Villas", address: "211 N Shore Drive, Surf City, NC 28445", lat: 34.4275464, lng: -77.5422753, status: 'active', percent: 0, pm: '', gc: '', gcpm: '', start: '', end: '', type: '', units: '' });
+      push(jobsRef, { projNum: '', name: "Topsail Landing Apts Phase II", address: "400 Gateway Condo Drive, Surf City, NC", lat: 34.4483438, lng: -77.5615301, status: 'active', percent: 0, pm: '', gc: '', gcpm: '', start: '', end: '', type: '', units: '' });
     }
   }, { onlyOnce: true });
+
+  // ── Pin Picker ──────────────────────────────────────────────────────────────
+  window.openPinPicker = function() {
+    document.getElementById('pinModal').classList.add('open');
+    setTimeout(() => {
+      if (!pinPickerMap) {
+        const centerLat = parseFloat(document.getElementById('inputLat').value) || 34.438;
+        const centerLng = parseFloat(document.getElementById('inputLng').value) || -77.552;
+        pinPickerMap = new google.maps.Map(document.getElementById('pinPickerMap'), {
+          center: { lat: centerLat, lng: centerLng },
+          zoom: 13,
+          mapTypeId: 'satellite',
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false
+        });
+        pinPickerMap.addListener('click', (e) => {
+          selectedPinLat = e.latLng.lat();
+          selectedPinLng = e.latLng.lng();
+          document.getElementById('pinLat').textContent = selectedPinLat.toFixed(6);
+          document.getElementById('pinLng').textContent = selectedPinLng.toFixed(6);
+          if (pinPickerMarker) pinPickerMarker.setMap(null);
+          pinPickerMarker = new google.maps.Marker({ position: e.latLng, map: pinPickerMap });
+        });
+      } else {
+        google.maps.event.trigger(pinPickerMap, 'resize');
+      }
+    }, 100);
+  };
+
+  window.closePinPicker = function() {
+    document.getElementById('pinModal').classList.remove('open');
+  };
+
+  window.confirmPin = function() {
+    if (selectedPinLat !== null && selectedPinLng !== null) {
+      document.getElementById('inputLat').value = selectedPinLat.toFixed(6);
+      document.getElementById('inputLng').value = selectedPinLng.toFixed(6);
+    }
+    closePinPicker();
+  };
 
   // ── Map helpers ─────────────────────────────────────────────────────────────
   function makeMarkerIcon(job, isSelected) {
     const color = isSelected ? '#ffffff' : STATUS_COLORS[job.status] || '#f4a830';
     const stroke = isSelected ? '#f4a830' : '#0f1117';
-    const num = jobs.indexOf(job) + 1;
+    const label = job.projNum ? job.projNum.slice(-4) : String(jobs.indexOf(job) + 1);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
       <path d="M18 0 C8.06 0 0 8.06 0 18 C0 31.5 18 44 18 44 C18 44 36 31.5 36 18 C36 8.06 27.94 0 18 0Z" fill="${color}" stroke="${stroke}" stroke-width="2"/>
-      <text x="18" y="23" text-anchor="middle" font-size="13" font-weight="bold" font-family="monospace" fill="#0f1117">${num}</text>
+      <text x="18" y="23" text-anchor="middle" font-size="11" font-weight="bold" font-family="monospace" fill="#0f1117">${jobs.indexOf(job)+1}</text>
     </svg>`;
     return {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
@@ -292,18 +423,36 @@
     };
   }
 
+  function getProgressColor(pct) { return pct < 30 ? '#f87171' : pct < 70 ? '#f4a830' : '#4caf50'; }
+
   function makeInfoContent(job) {
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.address)}`;
     const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${job.lat},${job.lng}`;
     const satelliteUrl = `https://www.google.com/maps/search/?api=1&query=${job.lat},${job.lng}&basemap=satellite`;
+    const pct = job.percent || 0;
+    const progColor = getProgressColor(pct);
     return `<div class="iw-content">
+      ${job.projNum ? `<div class="iw-projnum">PROJECT #${job.projNum}</div>` : ''}
       <div class="iw-name">${job.name}</div>
-      <div class="iw-addr">${job.address}</div>
+      <div class="iw-addr">${job.address || '<span style="color:#555">No address on file</span>'}</div>
+      <hr class="iw-divider">
       <div class="iw-row">
         <div><div class="iw-lbl">Status</div><div class="iw-val">${STATUS_LABELS[job.status]}</div></div>
-        <div><div class="iw-lbl">Complete</div><div class="iw-val">${job.percent || 0}%</div></div>
+        <div><div class="iw-lbl">Type</div><div class="iw-val">${job.type || '—'}</div></div>
+        <div><div class="iw-lbl">Units</div><div class="iw-val">${job.units || '—'}</div></div>
       </div>
-      ${job.pm ? `<div class="iw-row" style="margin-top:4px"><div><div class="iw-lbl">PM</div><div class="iw-val pm">${job.pm}</div></div>${job.type ? `<div><div class="iw-lbl">Type</div><div class="iw-val">${job.type}</div></div>` : ''}</div>` : ''}
+      <div class="iw-row">
+        <div><div class="iw-lbl">GC</div><div class="iw-val gc">${job.gc || '—'}</div></div>
+        <div><div class="iw-lbl">GC PM</div><div class="iw-val gc">${job.gcpm || '—'}</div></div>
+      </div>
+      <div class="iw-row">
+        <div><div class="iw-lbl">PM</div><div class="iw-val pm">${job.pm || '—'}</div></div>
+        <div><div class="iw-lbl">Start</div><div class="iw-val">${fmtDate(job.start)}</div></div>
+        <div><div class="iw-lbl">Est. End</div><div class="iw-val">${fmtDate(job.end)}</div></div>
+      </div>
+      <div class="iw-row" style="align-items:center">
+        <div style="flex:1"><div class="iw-lbl">Progress — ${pct}%</div><div class="iw-progress-bg"><div class="iw-progress-fill" style="width:${pct}%;background:${progColor}"></div></div></div>
+      </div>
       <div class="iw-btns">
         <a href="${mapsUrl}" target="_blank" class="iw-btn iw-btn-primary">🧭 Get Directions</a>
         <a href="${streetViewUrl}" target="_blank" class="iw-btn">📷 Street View</a>
@@ -317,13 +466,15 @@
     gmMarkers = {};
     const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
     visible.forEach(job => {
+      if (!job.lat || !job.lng) return;
       const isSelected = activeJob === job.fbKey;
       const marker = new google.maps.Marker({
         position: { lat: job.lat, lng: job.lng },
         map: gmap,
         icon: makeMarkerIcon(job, isSelected),
         title: job.name,
-        animation: isSelected ? google.maps.Animation.DROP : null
+        animation: isSelected ? google.maps.Animation.DROP : null,
+        draggable: true
       });
       marker.addListener('click', () => {
         activeJob = job.fbKey;
@@ -331,6 +482,12 @@
         infoWindow.open(gmap, marker);
         renderJobs();
         rebuildMarkers();
+      });
+      marker.addListener('dragend', async (e) => {
+        const newLat = e.latLng.lat();
+        const newLng = e.latLng.lng();
+        job.lat = newLat; job.lng = newLng;
+        await saveToFirebase(job);
       });
       if (isSelected) {
         infoWindow.setContent(makeInfoContent(job));
@@ -342,7 +499,7 @@
 
   function fitMap() {
     if (!gmap) return;
-    const visible = showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs;
+    const visible = (showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs).filter(j => j.lat && j.lng);
     if (visible.length === 0) return;
     if (visible.length === 1) { gmap.setCenter({ lat: visible[0].lat, lng: visible[0].lng }); gmap.setZoom(15); return; }
     const bounds = new google.maps.LatLngBounds();
@@ -352,7 +509,7 @@
 
   function focusJob(job) {
     activeJob = job.fbKey;
-    if (gmap) { gmap.panTo({ lat: job.lat, lng: job.lng }); gmap.setZoom(16); }
+    if (gmap && job.lat && job.lng) { gmap.panTo({ lat: job.lat, lng: job.lng }); gmap.setZoom(16); }
     renderJobs(); rebuildMarkers();
   }
 
@@ -373,7 +530,6 @@
   };
 
   // ── Render sidebar ──────────────────────────────────────────────────────────
-  function getProgressColor(pct) { return pct < 30 ? '#f87171' : pct < 70 ? '#f4a830' : '#4caf50'; }
   function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
 
   function renderJobs() {
@@ -383,27 +539,30 @@
       const isPinned = pinnedIds.has(job.fbKey);
       const isActive = activeJob === job.fbKey;
       const pct = job.percent || 0;
+      const progColor = getProgressColor(pct);
       const div = document.createElement('div');
       div.className = 'job-item' + (isActive ? ' active' : '');
       div.innerHTML = `
         <div class="job-top">
-          <div class="job-number">SITE #${String(i+1).padStart(2,'0')}</div>
+          <div class="job-projnum">${job.projNum ? 'PROJ #' + job.projNum : 'SITE #' + String(i+1).padStart(2,'0')}</div>
           <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
         </div>
         <div class="job-name">${job.name}</div>
-        <div class="job-address">${job.address}</div>
+        <div class="job-address">${job.address || '<span style="color:#3a3a4a">No address on file</span>'}</div>
         <div class="tag-row">
           ${job.type ? `<span class="tag">${job.type}</span>` : ''}
           ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
         </div>
         <div class="meta-grid">
+          <div class="meta-item"><div class="meta-label">GC</div><div class="meta-value gc">${job.gc || '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">GC PM</div><div class="meta-value gc">${job.gcpm || '—'}</div></div>
           <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
           <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
           <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
           <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
         </div>
         <div class="progress-row">
-          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${getProgressColor(pct)}"></div></div>
+          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${progColor}"></div></div>
           <div class="progress-label">${pct}%</div>
         </div>
         <div class="btn-row">
@@ -432,15 +591,20 @@
   };
 
   // ── Modal ───────────────────────────────────────────────────────────────────
-  window.openModal = function() {
-    editingId = null;
-    document.getElementById('modalTitle').textContent = 'Add Job Site';
-    document.getElementById('modalSaveBtn').textContent = 'Add Site';
-    ['inputName','inputAddress','inputPM','inputUnits','inputStart','inputEnd'].forEach(id => document.getElementById(id).value = '');
+  function clearModal() {
+    ['inputProjNum','inputName','inputAddress','inputPM','inputGC','inputGCPM','inputUnits','inputStart','inputEnd','inputLat','inputLng'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('inputType').value = '';
     document.getElementById('inputStatus').value = 'active';
     document.getElementById('inputPercent').value = 0;
     document.getElementById('rangeVal').textContent = '0%';
+    selectedPinLat = null; selectedPinLng = null;
+  }
+
+  window.openModal = function() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = 'Add Job Site';
+    document.getElementById('modalSaveBtn').textContent = 'Add Site';
+    clearModal();
     document.getElementById('modalBg').classList.add('open');
     document.getElementById('inputName').focus();
   };
@@ -451,9 +615,12 @@
     editingId = fbKey;
     document.getElementById('modalTitle').textContent = 'Edit Job Site';
     document.getElementById('modalSaveBtn').textContent = 'Save Changes';
+    document.getElementById('inputProjNum').value = job.projNum || '';
     document.getElementById('inputName').value = job.name;
-    document.getElementById('inputAddress').value = job.address;
+    document.getElementById('inputAddress').value = job.address || '';
     document.getElementById('inputPM').value = job.pm || '';
+    document.getElementById('inputGC').value = job.gc || '';
+    document.getElementById('inputGCPM').value = job.gcpm || '';
     document.getElementById('inputType').value = job.type || '';
     document.getElementById('inputUnits').value = job.units || '';
     document.getElementById('inputStart').value = job.start || '';
@@ -461,6 +628,10 @@
     document.getElementById('inputStatus').value = job.status;
     document.getElementById('inputPercent').value = job.percent || 0;
     document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
+    document.getElementById('inputLat').value = job.lat || '';
+    document.getElementById('inputLng').value = job.lng || '';
+    selectedPinLat = job.lat || null;
+    selectedPinLng = job.lng || null;
     document.getElementById('modalBg').classList.add('open');
   };
 
@@ -468,32 +639,44 @@
 
   window.saveJob = async function() {
     const name = document.getElementById('inputName').value.trim();
+    if (!name) { alert('Job name is required.'); return; }
+    const projNum = document.getElementById('inputProjNum').value.trim();
     const address = document.getElementById('inputAddress').value.trim();
-    if (!name || !address) return;
     const pm = document.getElementById('inputPM').value.trim();
+    const gc = document.getElementById('inputGC').value.trim();
+    const gcpm = document.getElementById('inputGCPM').value.trim();
     const type = document.getElementById('inputType').value;
     const units = document.getElementById('inputUnits').value.trim();
     const start = document.getElementById('inputStart').value;
     const end = document.getElementById('inputEnd').value;
     const status = document.getElementById('inputStatus').value;
     const percent = parseInt(document.getElementById('inputPercent').value) || 0;
+    const manualLat = parseFloat(document.getElementById('inputLat').value);
+    const manualLng = parseFloat(document.getElementById('inputLng').value);
 
     document.getElementById('modalSaveBtn').textContent = 'Saving...';
 
     if (editingId !== null) {
       const job = jobs.find(j => j.fbKey === editingId);
-      if (job) await saveToFirebase({ ...job, name, address, pm, type, units, start, end, status, percent });
+      let lat = job.lat, lng = job.lng;
+      if (!isNaN(manualLat) && !isNaN(manualLng)) { lat = manualLat; lng = manualLng; }
+      if (job) await saveToFirebase({ ...job, projNum, name, address, lat, lng, pm, gc, gcpm, type, units, start, end, status, percent });
       closeModal(); return;
     }
 
-    let lat = 34.44, lng = -77.56;
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
-      const data = await res.json();
-      if (data.length > 0) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
-    } catch {}
+    let lat = null, lng = null;
+    if (!isNaN(manualLat) && !isNaN(manualLng)) {
+      lat = manualLat; lng = manualLng;
+    } else if (address) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
+        const data = await res.json();
+        if (data.length > 0) { lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon); }
+      } catch {}
+    }
+    if (lat === null) { lat = 34.44; lng = -77.56; }
 
-    await saveToFirebase({ name, address, lat, lng, pm, type, units, start, end, status, percent });
+    await saveToFirebase({ projNum, name, address, lat, lng, pm, gc, gcpm, type, units, start, end, status, percent });
     closeModal();
   };
 
