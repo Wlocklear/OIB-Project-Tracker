@@ -305,7 +305,11 @@
   const jobsRef = ref(db, 'jobs');
 
   const STATUS_LABELS = { active: 'Active', completed: 'Completed', upcoming: 'Upcoming' };
-  const STATUS_COLORS = { active: '#f4a830', completed: '#4ab0f4', upcoming: '#d4c860' };
+  const STATUS_COLORS = { active: '#4caf50', completed: '#4ab0f4', upcoming: '#d4c860' };
+
+  const OFFICE = { name: 'ElectriForce OIB', address: '6719 Ocean Hwy W, Ocean Isle Beach, NC 28469', lat: 33.8937, lng: -78.4279 };
+  const MAPS_KEY = 'AIzaSyBw8ima_qTPP4HQNxgJs7ucTazaqD7b2MU';
+  let distanceCache = {};
 
   let jobs = [];
   let activeJob = null, editingId = null;
@@ -336,15 +340,84 @@
     });
     infoWindow = new google.maps.InfoWindow();
     mapInitialized = true;
-    if (jobs.length > 0) { rebuildMarkers(); fitMap(); }
+    placeOfficeMarker();
+    if (jobs.length > 0) { rebuildMarkers(); fitMap(); fetchAllDistances(); }
   });
+
+  // ── Office Marker ───────────────────────────────────────────────────────────
+  let officeMarker = null;
+  function placeOfficeMarker() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="52" viewBox="0 0 44 52">
+      <polygon points="22,2 42,14 42,38 22,50 2,38 2,14" fill="#e53935" stroke="#0f1117" stroke-width="2.5"/>
+      <text x="22" y="24" text-anchor="middle" font-size="9" font-weight="bold" font-family="monospace" fill="white">OIB</text>
+      <text x="22" y="36" text-anchor="middle" font-size="7" font-family="monospace" fill="white">OFFICE</text>
+    </svg>`;
+    officeMarker = new google.maps.Marker({
+      position: { lat: OFFICE.lat, lng: OFFICE.lng },
+      map: gmap,
+      icon: {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        scaledSize: new google.maps.Size(44, 52),
+        anchor: new google.maps.Point(22, 52)
+      },
+      title: OFFICE.name,
+      zIndex: 999
+    });
+    officeMarker.addListener('click', () => {
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(OFFICE.address)}`;
+      infoWindow.setContent(`<div class="iw-content">
+        <div style="font-size:10px;color:#e53935;letter-spacing:2px;margin-bottom:4px;">🏢 OFFICE</div>
+        <div class="iw-name" style="color:#e53935;">${OFFICE.name}</div>
+        <div class="iw-addr">${OFFICE.address}</div>
+        <div class="iw-btns">
+          <a href="${mapsUrl}" target="_blank" class="iw-btn iw-btn-primary" style="background:#e53935;border-color:#e53935;">🧭 Get Directions</a>
+        </div>
+      </div>`);
+      infoWindow.open(gmap, officeMarker);
+    });
+  }
+
+  // ── Distance Matrix ─────────────────────────────────────────────────────────
+  async function fetchAllDistances() {
+    const jobsWithCoords = jobs.filter(j => j.lat && j.lng);
+    if (jobsWithCoords.length === 0) return;
+    const service = new google.maps.DistanceMatrixService();
+    service.getDistanceMatrix({
+      origins: [{ lat: OFFICE.lat, lng: OFFICE.lng }],
+      destinations: jobsWithCoords.map(j => ({ lat: j.lat, lng: j.lng })),
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.IMPERIAL
+    }, (response, status) => {
+      if (status === 'OK' && response.rows[0]) {
+        response.rows[0].elements.forEach((el, i) => {
+          if (el.status === 'OK') {
+            distanceCache[jobsWithCoords[i].fbKey] = {
+              distance: el.distance.text,
+              duration: el.duration.text
+            };
+          }
+        });
+      } else {
+        // Fallback: straight-line distance
+        jobsWithCoords.forEach(j => {
+          const R = 3958.8;
+          const dLat = (j.lat - OFFICE.lat) * Math.PI / 180;
+          const dLng = (j.lng - OFFICE.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2)**2 + Math.cos(OFFICE.lat*Math.PI/180)*Math.cos(j.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+          const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          distanceCache[j.fbKey] = { distance: miles.toFixed(1) + ' mi', duration: '~est.' };
+        });
+      }
+      renderJobs();
+    });
+  }
 
   // ── Firebase ────────────────────────────────────────────────────────────────
   onValue(jobsRef, (snapshot) => {
     const data = snapshot.val();
     jobs = data ? Object.entries(data).map(([fbKey, val]) => ({ ...val, fbKey })) : [];
     renderJobs();
-    if (mapInitialized) { rebuildMarkers(); fitMap(); }
+    if (mapInitialized) { rebuildMarkers(); fitMap(); fetchAllDistances(); }
     document.getElementById('loadingMsg').style.display = 'none';
   });
 
@@ -583,6 +656,7 @@
           <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
         </div>
         ${job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a5a;letter-spacing:0.5px;margin-bottom:6px;">📍 ${job.lat.toFixed(5)}, ${job.lng.toFixed(5)}</div>` : ''}
+        ${distanceCache[job.fbKey] ? `<div style="font-size:10px;color:#7a8aaa;letter-spacing:0.5px;margin-bottom:6px;">🚗 ${distanceCache[job.fbKey].distance} &nbsp;·&nbsp; ⏱ ${distanceCache[job.fbKey].duration} from office</div>` : (job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a4a;margin-bottom:6px;">⟳ Calculating distance...</div>` : '')}
         <div class="progress-row">
           <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${progColor}"></div></div>
           <div class="progress-label">${pct}%</div>
@@ -710,7 +784,7 @@
   window.__mapsReady = new Promise(resolve => { window.__mapsResolve = resolve; });
   window.initMap = function() { window.__mapsResolve(); };
 </script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBw8ima_qTPP4HQNxgJs7ucTazaqD7b2MU&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBw8ima_qTPP4HQNxgJs7ucTazaqD7b2MU&libraries=geometry&callback=initMap" async defer></script>
 
 </body>
 </html>
