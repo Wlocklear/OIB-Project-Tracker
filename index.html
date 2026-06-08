@@ -30,16 +30,25 @@
     .sidebar-header { padding: 14px 16px 10px; font-size: 10px; letter-spacing: 2px; color: #f4a830; text-transform: uppercase; border-bottom: 1px solid #2a2d38; }
     .job-list { padding: 8px 0; flex: 1; }
     #loadingMsg { padding: 20px 16px; font-size: 11px; color: #555; letter-spacing: 1px; }
-    .job-item { padding: 12px 16px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #1e2130; }
+    .job-item { padding: 10px 16px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #1e2130; }
     .job-item:hover, .job-item.active { background: #1a1e2a; border-left-color: #f4a830; }
-    .job-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-    .job-projnum { font-size: 10px; color: #f4a830; letter-spacing: 1px; }
+    .job-collapsed-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .job-collapsed-name { font-size: 12px; font-weight: 600; color: #e8e0d0; flex: 1; line-height: 1.3; }
+    .job-expand-arrow { font-size: 10px; color: #555; transition: transform 0.2s; flex-shrink: 0; }
+    .job-item.expanded .job-expand-arrow { transform: rotate(180deg); }
+    .job-details { display: none; margin-top: 8px; }
+    .job-item.expanded .job-details { display: block; }
     .status-badge { font-size: 9px; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 2px; font-weight: 600; text-transform: uppercase; }
     .status-active { background: #1a3a1a; color: #4caf50; }
     .status-completed { background: #1a2a3a; color: #4ab0f4; }
     .status-upcoming { background: #2a2a1a; color: #d4c860; }
     .job-name { font-size: 12px; font-weight: 600; color: #e8e0d0; line-height: 1.3; margin-bottom: 2px; }
     .job-address { font-size: 10px; color: #555; line-height: 1.4; margin-bottom: 6px; }
+    .office-card { padding: 12px 16px; border-left: 3px solid #e53935; background: #1a1215; border-bottom: 2px solid #2a1a1a; cursor: pointer; transition: all 0.2s; }
+    .office-card:hover { background: #221518; }
+    .office-card-label { font-size: 9px; color: #e53935; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    .office-card-name { font-size: 12px; font-weight: 600; color: #e8e0d0; margin-bottom: 2px; }
+    .office-card-addr { font-size: 10px; color: #555; line-height: 1.4; }
     .tag-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
     .tag { font-size: 9px; padding: 2px 7px; border-radius: 2px; background: #1e2130; color: #a0a8c0; letter-spacing: 0.5px; text-transform: uppercase; }
     .tag.units { color: #7eb8a0; background: #142420; }
@@ -67,6 +76,8 @@
     .gm-style .gm-style-iw-d { overflow: hidden !important; }
     .gm-style .gm-style-iw-t::after { background: #13161e !important; }
     .gm-style .gm-style-iw-tc::after { background: #13161e !important; }
+    .gm-style button.gm-ui-hover-effect { opacity: 1 !important; }
+    .gm-style button.gm-ui-hover-effect img { filter: invert(1) !important; }
     .iw-content { padding: 18px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #e8e0d0; min-width: 300px; }
     .iw-name { font-size: 17px; font-weight: 600; color: #f4a830; margin-bottom: 2px; line-height: 1.3; }
     .iw-projnum { font-size: 10px; color: #666; letter-spacing: 1px; margin-bottom: 6px; }
@@ -144,6 +155,14 @@
 <div class="main">
   <div class="sidebar">
     <div class="sidebar-header">Job Sites</div>
+    <!-- Office Card -->
+    <div class="office-card" id="officeCard" onclick="focusOffice()">
+      <div class="office-card-top">
+        <span class="office-card-label">🏢 Office</span>
+      </div>
+      <div class="office-card-name">ElectriForce OIB</div>
+      <div class="office-card-addr">6719 Ocean Hwy W, Ocean Isle Beach, NC 28469</div>
+    </div>
     <div class="job-list" id="jobList">
       <div id="loadingMsg">⟳ Connecting to database...</div>
     </div>
@@ -607,6 +626,22 @@
     renderJobs(); rebuildMarkers();
   }
 
+  window.focusOffice = function() {
+    if (gmap) { gmap.panTo({ lat: OFFICE.lat, lng: OFFICE.lng }); gmap.setZoom(16); }
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(OFFICE.address)}`;
+    infoWindow.setContent(`<div class="iw-content">
+      <div style="font-size:10px;color:#e53935;letter-spacing:2px;margin-bottom:4px;">🏢 OFFICE</div>
+      <div class="iw-name" style="color:#e53935;">${OFFICE.name}</div>
+      <div class="iw-addr">${OFFICE.address}</div>
+      <div class="iw-btns">
+        <a href="${mapsUrl}" target="_blank" class="iw-btn iw-btn-primary" style="background:#e53935;border-color:#e53935;">🧭 Get Directions</a>
+      </div>
+    </div>`);
+    infoWindow.open(gmap, officeMarker);
+    document.getElementById('officeCard').style.borderLeftWidth = '5px';
+    setTimeout(() => { document.getElementById('officeCard').style.borderLeftWidth = '3px'; }, 600);
+  };
+
   // ── Toggle ──────────────────────────────────────────────────────────────────
   window.toggleMapMode = function() {
     showSelectedOnly = !showSelectedOnly;
@@ -626,51 +661,73 @@
   // ── Render sidebar ──────────────────────────────────────────────────────────
   function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
 
+  let expandedCards = new Set();
+
   function renderJobs() {
     const list = document.getElementById('jobList');
     list.innerHTML = '';
     jobs.forEach((job, i) => {
       const isPinned = pinnedIds.has(job.fbKey);
       const isActive = activeJob === job.fbKey;
+      const isExpanded = expandedCards.has(job.fbKey) || isActive;
       const pct = job.percent || 0;
       const progColor = getProgressColor(pct);
       const div = document.createElement('div');
-      div.className = 'job-item' + (isActive ? ' active' : '');
+      div.className = 'job-item' + (isActive ? ' active' : '') + (isExpanded ? ' expanded' : '');
+
       div.innerHTML = `
-        <div class="job-top">
-          <div class="job-projnum">${job.projNum ? 'PROJ #' + job.projNum : 'SITE #' + String(i+1).padStart(2,'0')}</div>
-          <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+        <div class="job-collapsed-row">
+          <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">
+            <div style="font-size:9px;color:#f4a830;letter-spacing:1px;">${job.projNum ? 'PROJ #' + job.projNum : 'SITE #' + String(i+1).padStart(2,'0')}</div>
+            <div class="job-collapsed-name">${job.name}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+            <span class="job-expand-arrow">▼</span>
+          </div>
         </div>
-        <div class="job-name">${job.name}</div>
-        <div class="job-address">${job.address || '<span style="color:#3a3a4a">No address on file</span>'}</div>
-        <div class="tag-row">
-          ${job.type ? `<span class="tag">${job.type}</span>` : ''}
-          ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
-        </div>
-        <div class="meta-grid">
-          <div class="meta-item"><div class="meta-label">GC</div><div class="meta-value gc">${job.gc || '—'}</div></div>
-          <div class="meta-item"><div class="meta-label">GC PM</div><div class="meta-value gc">${job.gcpm || '—'}</div></div>
-          <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
-          <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
-          <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
-          <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
-        </div>
-        ${job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a5a;letter-spacing:0.5px;margin-bottom:6px;">📍 ${job.lat.toFixed(5)}, ${job.lng.toFixed(5)}</div>` : ''}
-        ${distanceCache[job.fbKey] ? `<div style="font-size:10px;color:#7a8aaa;letter-spacing:0.5px;margin-bottom:6px;">🚗 ${distanceCache[job.fbKey].distance} &nbsp;·&nbsp; ⏱ ${distanceCache[job.fbKey].duration} from office</div>` : (job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a4a;margin-bottom:6px;">⟳ Calculating distance...</div>` : '')}
-        <div class="progress-row">
-          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${progColor}"></div></div>
-          <div class="progress-label">${pct}%</div>
-        </div>
-        <div class="btn-row">
-          <button class="edit-btn" onclick="openEdit('${job.fbKey}',event)">✎ edit</button>
-          <button class="del-btn" onclick="confirmDelete('${job.fbKey}',event)">✕ delete</button>
-          <button class="pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePin('${job.fbKey}',event)">${isPinned ? '★ pinned' : '☆ pin'}</button>
+        <div class="job-details">
+          <div class="job-address" style="margin-top:6px;">${job.address || '<span style="color:#3a3a4a">No address on file</span>'}</div>
+          <div class="tag-row" style="margin-top:6px;">
+            ${job.type ? `<span class="tag">${job.type}</span>` : ''}
+            ${job.units ? `<span class="tag units">${job.units} units</span>` : ''}
+          </div>
+          <div class="meta-grid">
+            <div class="meta-item"><div class="meta-label">GC</div><div class="meta-value gc">${job.gc || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">GC PM</div><div class="meta-value gc">${job.gcpm || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">PM</div><div class="meta-value pm">${job.pm || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">Complete</div><div class="meta-value">${pct}%</div></div>
+            <div class="meta-item"><div class="meta-label">Start</div><div class="meta-value">${fmtDate(job.start)}</div></div>
+            <div class="meta-item"><div class="meta-label">Est. End</div><div class="meta-value">${fmtDate(job.end)}</div></div>
+          </div>
+          ${job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a5a;letter-spacing:0.5px;margin-bottom:6px;">📍 ${job.lat.toFixed(5)}, ${job.lng.toFixed(5)}</div>` : ''}
+          ${distanceCache[job.fbKey] ? `<div style="font-size:10px;color:#7a8aaa;letter-spacing:0.5px;margin-bottom:6px;">🚗 ${distanceCache[job.fbKey].distance} &nbsp;·&nbsp; ⏱ ${distanceCache[job.fbKey].duration} from office</div>` : (job.lat && job.lng ? `<div style="font-size:9px;color:#3a3a4a;margin-bottom:6px;">⟳ Calculating distance...</div>` : '')}
+          <div class="progress-row">
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${progColor}"></div></div>
+            <div class="progress-label">${pct}%</div>
+          </div>
+          <div class="btn-row">
+            <button class="edit-btn" onclick="openEdit('${job.fbKey}',event)">✎ edit</button>
+            <button class="del-btn" onclick="confirmDelete('${job.fbKey}',event)">✕ delete</button>
+            <button class="pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePin('${job.fbKey}',event)">${isPinned ? '★ pinned' : '☆ pin'}</button>
+          </div>
         </div>
       `;
+
       div.onclick = (e) => {
         if (['edit-btn','del-btn','pin-btn'].some(c => e.target.classList.contains(c))) return;
-        focusJob(job);
+        if (expandedCards.has(job.fbKey)) {
+          expandedCards.delete(job.fbKey);
+          div.classList.remove('expanded');
+          div.querySelector('.job-details').style.display = 'none';
+        } else {
+          expandedCards.add(job.fbKey);
+          div.classList.add('expanded');
+          div.querySelector('.job-details').style.display = 'block';
+          focusJob(job);
+        }
       };
+
       list.appendChild(div);
     });
     document.getElementById('count').textContent = jobs.length;
