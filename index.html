@@ -161,7 +161,7 @@
         <span class="office-card-label">🏢 Office</span>
       </div>
       <div class="office-card-name">ElectriForce OIB</div>
-      <div class="office-card-addr">6719 Ocean Hwy W, Ocean Isle Beach, NC 28469</div>
+      <div class="office-card-addr">6719 Ocean Highway W, Ocean Isle Beach, NC 28469</div>
     </div>
     <div class="job-list" id="jobList">
       <div id="loadingMsg">⟳ Connecting to database...</div>
@@ -326,7 +326,7 @@
   const STATUS_LABELS = { active: 'Active', completed: 'Completed', upcoming: 'Upcoming' };
   const STATUS_COLORS = { active: '#4caf50', completed: '#4ab0f4', upcoming: '#d4c860' };
 
-  const OFFICE = { name: 'ElectriForce OIB', address: '6719 Ocean Hwy W, Ocean Isle Beach, NC 28469', lat: 33.8937, lng: -78.4279 };
+  const OFFICE = { name: 'ElectriForce OIB', address: '6719 Ocean Highway W, Ocean Isle Beach, NC 28469', lat: 33.8937, lng: -78.4279 };
   const MAPS_KEY = 'AIzaSyBw8ima_qTPP4HQNxgJs7ucTazaqD7b2MU';
   let distanceCache = {};
 
@@ -614,15 +614,19 @@
     if (!gmap) return;
     const visible = (showSelectedOnly ? jobs.filter(j => pinnedIds.has(j.fbKey)) : jobs).filter(j => j.lat && j.lng);
     if (visible.length === 0) return;
-    if (visible.length === 1) { gmap.setCenter({ lat: visible[0].lat, lng: visible[0].lng }); gmap.setZoom(15); return; }
+    if (visible.length === 1) { gmap.setCenter({ lat: visible[0].lat, lng: visible[0].lng }); gmap.setZoom(13); return; }
     const bounds = new google.maps.LatLngBounds();
+    // Include office in initial fit
+    bounds.extend({ lat: OFFICE.lat, lng: OFFICE.lng });
     visible.forEach(j => bounds.extend({ lat: j.lat, lng: j.lng }));
-    gmap.fitBounds(bounds, 80);
+    gmap.fitBounds(bounds, 120);
   }
 
   function focusJob(job) {
     activeJob = job.fbKey;
-    if (gmap && job.lat && job.lng) { gmap.panTo({ lat: job.lat, lng: job.lng }); gmap.setZoom(16); }
+    expandedCards.clear();
+    expandedCards.add(job.fbKey);
+    if (gmap && job.lat && job.lng) { gmap.panTo({ lat: job.lat, lng: job.lng }); gmap.setZoom(14); }
     renderJobs(); rebuildMarkers();
   }
 
@@ -717,13 +721,13 @@
       div.onclick = (e) => {
         if (['edit-btn','del-btn','pin-btn'].some(c => e.target.classList.contains(c))) return;
         if (expandedCards.has(job.fbKey)) {
+          // Collapse this card
           expandedCards.delete(job.fbKey);
           div.classList.remove('expanded');
           div.querySelector('.job-details').style.display = 'none';
         } else {
-          expandedCards.add(job.fbKey);
-          div.classList.add('expanded');
-          div.querySelector('.job-details').style.display = 'block';
+          // Collapse any other open card first
+          expandedCards.clear();
           focusJob(job);
         }
       };
