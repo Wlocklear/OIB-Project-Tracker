@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oib-tracker-v1';
+const CACHE_NAME = 'oib-tracker-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -25,10 +25,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('firebaseio.com') || e.request.url.includes('maps.googleapis.com')) {
-    return; // Always fetch live for Firebase and Maps
-  }
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  // Always fetch fresh — never serve from cache
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });
