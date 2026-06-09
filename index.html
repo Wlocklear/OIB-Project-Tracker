@@ -393,9 +393,18 @@
     google.maps.event.addListener(infoWindow, 'domready', () => {
       const btns = document.querySelectorAll('.gm-ui-hover-effect');
       btns.forEach(btn => {
-        btn.style.cssText = 'opacity:1!important;background:#c0392b!important;border-radius:50%!important;width:28px!important;height:28px!important;top:6px!important;right:6px!important;display:flex!important;align-items:center!important;justify-content:center!important;';
-        const imgs = btn.querySelectorAll('img');
-        imgs.forEach(img => { img.style.cssText = 'filter:invert(1)!important;width:16px!important;height:16px!important;'; });
+        btn.style.cssText = 'opacity:1!important;background:#c0392b!important;border-radius:50%!important;width:28px!important;height:28px!important;top:6px!important;right:6px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:visible!important;';
+        // Hide any existing img elements
+        const imgs = btn.querySelectorAll('img, span');
+        imgs.forEach(el => { el.style.cssText = 'display:none!important;'; });
+        // Add our own X if not already added
+        if (!btn.querySelector('.custom-x')) {
+          const x = document.createElement('span');
+          x.className = 'custom-x';
+          x.innerHTML = '✕';
+          x.style.cssText = 'color:white!important;font-size:14px!important;font-weight:bold!important;line-height:1!important;pointer-events:none;';
+          btn.appendChild(x);
+        }
       });
     });
     mapInitialized = true;
