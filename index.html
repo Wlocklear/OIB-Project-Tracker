@@ -389,6 +389,15 @@
       fullscreenControl: true
     });
     infoWindow = new google.maps.InfoWindow();
+    // Force close button to be visible after any infowindow opens
+    google.maps.event.addListener(infoWindow, 'domready', () => {
+      const btns = document.querySelectorAll('.gm-ui-hover-effect');
+      btns.forEach(btn => {
+        btn.style.cssText = 'opacity:1!important;background:#c0392b!important;border-radius:50%!important;width:28px!important;height:28px!important;top:6px!important;right:6px!important;display:flex!important;align-items:center!important;justify-content:center!important;';
+        const imgs = btn.querySelectorAll('img');
+        imgs.forEach(img => { img.style.cssText = 'filter:invert(1)!important;width:16px!important;height:16px!important;'; });
+      });
+    });
     mapInitialized = true;
     placeOfficeMarker();
     if (jobs.length > 0) { rebuildMarkers(); fitMap(); fetchAllDistances(); }
