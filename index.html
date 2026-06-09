@@ -159,6 +159,21 @@
     .btn-pin-cancel { padding:8px 16px; background:transparent; color:#888; border:1px solid #2a2d38; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
     .set-pin-btn { font-size:10px; background:none; border:1px solid #2a2d38; color:#888; font-family:'IBM Plex Mono',monospace; letter-spacing:1px; text-transform:uppercase; padding:4px 8px; cursor:pointer; transition:all 0.15s; margin-top:6px; }
     .set-pin-btn:hover { border-color:#f4a830; color:#f4a830; }
+    .lock-btn { background: none; border: 1px solid #2a2d38; color: #888; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; cursor: pointer; border-radius: 3px; transition: all 0.2s; white-space: nowrap; }
+    .lock-btn.unlocked { border-color: #4caf50; color: #4caf50; }
+    .lock-btn:hover { border-color: #f4a830; color: #f4a830; }
+    /* ── Auth Modal ── */
+    #authModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:3000; align-items:center; justify-content:center; }
+    #authModal.open { display:flex; }
+    .auth-box { background:#13161e; border:1px solid #f4a830; padding:28px; width:300px; font-family:'IBM Plex Mono',monospace; text-align:center; }
+    .auth-box h3 { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:#f4a830; margin-bottom:6px; }
+    .auth-box p { font-size:10px; color:#555; letter-spacing:1px; margin-bottom:16px; }
+    .auth-box input { width:100%; background:#0f1117; border:1px solid #2a2d38; color:#e8e0d0; font-family:'IBM Plex Mono',monospace; font-size:16px; padding:10px; outline:none; text-align:center; letter-spacing:4px; margin-bottom:8px; }
+    .auth-box input:focus { border-color:#f4a830; }
+    .auth-error { font-size:10px; color:#f87171; min-height:14px; margin-bottom:10px; letter-spacing:1px; }
+    .auth-actions { display:flex; gap:8px; }
+    .auth-actions .btn-primary { flex:1; padding:10px; background:#f4a830; color:#0f1117; border:none; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+    .auth-actions .btn-cancel { flex:1; padding:10px; background:transparent; color:#888; border:1px solid #2a2d38; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
   </style>
 </head>
 <body>
@@ -180,6 +195,7 @@
       <span class="toggle-label" id="toggleLabel">Show Selected Only</span>
     </div>
     <div class="job-count"><span id="count">0</span> Sites</div>
+    <button class="lock-btn" id="lockBtn" onclick="toggleLock()">🔒 Locked</button>
   </div>
 </header>
 <div class="main">
@@ -203,6 +219,19 @@
   </div>
 </div>
 
+<!-- Auth Modal -->
+<div id="authModal">
+  <div class="auth-box">
+    <h3>🔒 Locked</h3>
+    <p>Enter password to make changes</p>
+    <input type="password" id="authInput" placeholder="••••••" maxlength="20" onkeydown="if(event.key==='Enter')submitAuth()" autofocus />
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-actions">
+      <button class="btn-cancel" onclick="closeAuth()">Cancel</button>
+      <button class="btn-primary" onclick="submitAuth()">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add/Edit Modal -->
 <div class="modal-bg" id="modalBg">
@@ -800,14 +829,72 @@
     document.getElementById('count').textContent = jobs.length;
   }
 
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  let isUnlocked = false;
+  let pendingAction = null;
+
+  window.toggleLock = function() {
+    if (isUnlocked) {
+      isUnlocked = false;
+      updateLockBtn();
+    } else {
+      pendingAction = null;
+      openAuth();
+    }
+  };
+
+  function openAuth(action) {
+    pendingAction = action || null;
+    document.getElementById('authInput').value = '';
+    document.getElementById('authError').textContent = '';
+    document.getElementById('authModal').classList.add('open');
+    setTimeout(() => document.getElementById('authInput').focus(), 100);
+  }
+
+  window.closeAuth = function() {
+    document.getElementById('authModal').classList.remove('open');
+    pendingAction = null;
+  };
+
+  window.submitAuth = function() {
+    const val = document.getElementById('authInput').value.trim();
+    if (val === 'OIB') {
+      isUnlocked = true;
+      updateLockBtn();
+      document.getElementById('authModal').classList.remove('open');
+      if (pendingAction) { pendingAction(); pendingAction = null; }
+    } else {
+      document.getElementById('authError').textContent = 'Incorrect password.';
+      document.getElementById('authInput').value = '';
+      document.getElementById('authInput').focus();
+    }
+  };
+
+  function updateLockBtn() {
+    const btn = document.getElementById('lockBtn');
+    if (isUnlocked) {
+      btn.textContent = '🔓 Unlocked';
+      btn.classList.add('unlocked');
+    } else {
+      btn.textContent = '🔒 Locked';
+      btn.classList.remove('unlocked');
+    }
+  }
+
+  function requireAuth(action) {
+    if (isUnlocked) { action(); } else { openAuth(action); }
+  }
+
   // ── Delete ──────────────────────────────────────────────────────────────────
   window.confirmDelete = function(fbKey, e) {
     e.stopPropagation();
-    if (confirm('Delete this job site?')) {
-      deleteFromFirebase(fbKey);
-      if (activeJob === fbKey) activeJob = null;
-      pinnedIds.delete(fbKey);
-    }
+    requireAuth(() => {
+      if (confirm('Delete this job site?')) {
+        deleteFromFirebase(fbKey);
+        if (activeJob === fbKey) activeJob = null;
+        pinnedIds.delete(fbKey);
+      }
+    });
   };
 
   // ── Modal ───────────────────────────────────────────────────────────────────
@@ -821,38 +908,42 @@
   }
 
   window.openModal = function() {
-    editingId = null;
-    document.getElementById('modalTitle').textContent = 'Add Job Site';
-    document.getElementById('modalSaveBtn').textContent = 'Add Site';
-    clearModal();
-    document.getElementById('modalBg').classList.add('open');
-    document.getElementById('inputName').focus();
+    requireAuth(() => {
+      editingId = null;
+      document.getElementById('modalTitle').textContent = 'Add Job Site';
+      document.getElementById('modalSaveBtn').textContent = 'Add Site';
+      clearModal();
+      document.getElementById('modalBg').classList.add('open');
+      document.getElementById('inputName').focus();
+    });
   };
 
   window.openEdit = function(fbKey, e) {
     e.stopPropagation();
-    const job = jobs.find(j => j.fbKey === fbKey); if (!job) return;
-    editingId = fbKey;
-    document.getElementById('modalTitle').textContent = 'Edit Job Site';
-    document.getElementById('modalSaveBtn').textContent = 'Save Changes';
-    document.getElementById('inputProjNum').value = job.projNum || '';
-    document.getElementById('inputName').value = job.name;
-    document.getElementById('inputAddress').value = job.address || '';
-    document.getElementById('inputPM').value = job.pm || '';
-    document.getElementById('inputGC').value = job.gc || '';
-    document.getElementById('inputGCPM').value = job.gcpm || '';
-    document.getElementById('inputType').value = job.type || '';
-    document.getElementById('inputUnits').value = job.units || '';
-    document.getElementById('inputStart').value = job.start || '';
-    document.getElementById('inputEnd').value = job.end || '';
-    document.getElementById('inputStatus').value = job.status;
-    document.getElementById('inputPercent').value = job.percent || 0;
-    document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
-    document.getElementById('inputLat').value = job.lat || '';
-    document.getElementById('inputLng').value = job.lng || '';
-    selectedPinLat = job.lat || null;
-    selectedPinLng = job.lng || null;
-    document.getElementById('modalBg').classList.add('open');
+    requireAuth(() => {
+      const job = jobs.find(j => j.fbKey === fbKey); if (!job) return;
+      editingId = fbKey;
+      document.getElementById('modalTitle').textContent = 'Edit Job Site';
+      document.getElementById('modalSaveBtn').textContent = 'Save Changes';
+      document.getElementById('inputProjNum').value = job.projNum || '';
+      document.getElementById('inputName').value = job.name;
+      document.getElementById('inputAddress').value = job.address || '';
+      document.getElementById('inputPM').value = job.pm || '';
+      document.getElementById('inputGC').value = job.gc || '';
+      document.getElementById('inputGCPM').value = job.gcpm || '';
+      document.getElementById('inputType').value = job.type || '';
+      document.getElementById('inputUnits').value = job.units || '';
+      document.getElementById('inputStart').value = job.start || '';
+      document.getElementById('inputEnd').value = job.end || '';
+      document.getElementById('inputStatus').value = job.status;
+      document.getElementById('inputPercent').value = job.percent || 0;
+      document.getElementById('rangeVal').textContent = (job.percent || 0) + '%';
+      document.getElementById('inputLat').value = job.lat || '';
+      document.getElementById('inputLng').value = job.lng || '';
+      selectedPinLat = job.lat || null;
+      selectedPinLng = job.lng || null;
+      document.getElementById('modalBg').classList.add('open');
+    });
   };
 
   window.closeModal = function() { document.getElementById('modalBg').classList.remove('open'); editingId = null; };
